@@ -9,9 +9,10 @@ import webserver
 load_dotenv()  # Load environment variables from .env
 
 # --- Determine and Load Transcript File --- 
-script_dir = os.path.dirname(os.path.abspath(__file__))
+#script_dir = os.path.dirname(os.path.abspath(__file__))
 # Construct path relative to the script location
-transcript_file = os.path.join(script_dir, "../data/WS1-C2.vtt") 
+#transcript_file = os.path.join(script_dir, "../data/WS1-C2.vtt") 
+transcript_file = "data/WS1-C2.vtt"
 
 MAX_CHARS = 60000 # Approx 15k tokens (using 4 chars/token heuristic)
 
