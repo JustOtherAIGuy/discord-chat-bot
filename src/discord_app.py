@@ -4,15 +4,16 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 import re
-import webserver
+from webserver import keep_alive
+from database import init_db, log_interaction, store_feedback
 
 load_dotenv()  # Load environment variables from .env
 
+# Initialize the database
+init_db()
+
 # --- Determine and Load Transcript File --- 
-#script_dir = os.path.dirname(os.path.abspath(__file__))
-# Construct path relative to the script location
-#transcript_file = os.path.join(script_dir, "../data/WS1-C2.vtt") 
-transcript_file = "data/WS1-C2.vtt"
+transcript_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "WS1-C2.vtt")
 
 MAX_CHARS = 60000 # Approx 15k tokens (using 4 chars/token heuristic)
 
@@ -90,12 +91,12 @@ client_openai = OpenAI()
 
 @client.event
 async def on_ready():
-    # Send the message "hello" to every text channel on the Discord server.
-    for channel in client.get_all_channels():
-        if isinstance(channel, discord.TextChannel):
-            await channel.send("hello")
-    #await client.close()
-
+    # Send the message "hello" only to the general channel
+    for guild in client.guilds:
+        general_channel = discord.utils.get(guild.text_channels, name='general')
+        if general_channel:
+            await general_channel.send("hello")
+    
 @client.event
 async def on_message(message):
     if message.author == client.user:
@@ -103,17 +104,61 @@ async def on_message(message):
 
     content_lower = message.content.lower()
 
+    # Check if it's a feedback response in a thread
+    if isinstance(message.channel, discord.Thread) and message.channel.owner_id == client.user.id:
+        if content_lower.startswith(("yes", "no")):
+            # Store the feedback
+            try:
+                thread_name = message.channel.name
+                interaction_id = int(thread_name.split('-')[1]) if '-' in thread_name else None
+                if interaction_id:
+                    feedback = message.content
+                    store_feedback(interaction_id, feedback)
+                    await message.channel.send("Thank you for your feedback!")
+                    await message.channel.edit(archived=True)
+                    return
+            except Exception as e:
+                print(f"Error storing feedback: {e}")
+                return
+
     # Bot is mentioned or called
     is_asked = (
         client.user.mention in message.content or
-        any(word in content_lower for word in ["bot", "question", "hey bot", "ai", "assistant"])
+        any(word in content_lower for word in ["bot", "Bot", "hey bot"])
     )
 
     if is_asked:
-        # Typing indicator
-        async with message.channel.typing():
-            response = await answer_question_basic(client_openai, workshop_context, message.content)
-            await message.channel.send(response)
+        # Create a thread for the question
+        try:
+            thread = await message.create_thread(
+                name=f"q-{message.id}",
+                auto_archive_duration=60
+            )
+            
+            # Typing indicator in thread
+            async with thread.typing():
+                response = await answer_question_basic(client_openai, workshop_context, message.content)
+                
+                # Send response in thread
+                await thread.send(response)
+                
+                # Log interaction and get the interaction ID
+                interaction_id = log_interaction(
+                    message.author.id,
+                    message.channel.id,
+                    message.content,
+                    response,
+                    thread.id
+                )
+                
+                # Rename thread with interaction ID for tracking
+                await thread.edit(name=f"question-{interaction_id}")
+                
+                # Ask for feedback
+                await thread.send("Was this response helpful? (Please reply with Yes/No and optionally add more details)")
+                
+        except Exception as e:
+            await message.channel.send(f"Error: {str(e)}")
 
 def run_discord_bot():
     discord_token = os.environ["DISCORD_BOT_TOKEN"]
@@ -124,6 +169,6 @@ def run_discord_bot():
 
 if __name__ == "__main__":
     # Retrieve the token from the environment variable populated by the Modal secret
-    webserver.keep_alive()  # Start the Flask server
+    keep_alive()  # Start the Flask server
     run_discord_bot()
 

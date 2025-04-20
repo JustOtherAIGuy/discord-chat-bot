@@ -3,10 +3,15 @@
 A Python-based Discord bot using RAG to get the transcription of the live sessions of the course [Building LLM Applications for Data Scientists and Software Engineers](https://maven.com/hugo-stefan/building-llm-apps-ds-and-swe-from-first-principles)
 
 ## Features
-- Connects to Discord using the `discord` library.
-- Loads a workshop transcript from a `.vtt` file for context.
-- Uses OpenAI's GPT model to answer user questions based on the transcript.
-- Responds to messages when called or mentioned in a Discord server.
+- Connects to Discord using the `discord` library
+- Loads a workshop transcript from a `.vtt` file for context
+- Uses OpenAI's GPT model to answer user questions based on the transcript
+- Responds to messages when called or mentioned in a Discord server
+- Creates dedicated threads for each question for organized conversations
+- Collects user feedback on responses
+- Logs all interactions in a SQLite database for analysis
+- Greets users in the general channel on startup
+- Supports a web interface for monitoring bot interactions using Datasette
 
 ## Getting Started
 
@@ -59,14 +64,25 @@ The bot will:
 3. **Discord Bot Setup**:
    - Initializes a Discord client with appropriate intents.
    - Listens for messages and responds when called or mentioned.
+   - Creates threads for each question to keep conversations organized.
+   - Collects user feedback through thread interactions.
 
-4. **Web Server (`webserver.keep_alive`)**:
+4. **Database Integration**:
+   - Logs all interactions in SQLite database.
+   - Stores user questions, bot responses, and feedback.
+   - Provides data for analysis through Datasette interface.
+
+5. **Web Server (`webserver.keep_alive`)**:
    - Keeps the bot running by starting a lightweight Flask server.
+   - Hosts Datasette interface for interaction monitoring.
 
 ### File Structure
-- `discord_app.py`: Main script for the Discord bot.
-- `data/WS1-C2.vtt`: Workshop transcript used for context.
-- `.env`: Environment variables for sensitive credentials.
+- `discord_app.py`: Main script for the Discord bot
+- `database.py`: Handles SQLite database operations for logging interactions
+- `webserver.py`: Flask server for keeping the bot alive and hosting Datasette interface
+- `data/WS1-C2.vtt`: Workshop transcript used for context
+- `.env`: Environment variables for sensitive credentials
+
 
 ## Creating a Discord bot
 
