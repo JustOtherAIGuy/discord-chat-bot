@@ -12,12 +12,14 @@ load_dotenv()  # Load environment variables from .env
 
 # Initialize the database and wandb
 init_db()
-init_wandb()
+
 
 # --- Determine and Load Transcript File --- 
 transcript_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "WS1-C2.vtt")
 
 MAX_CHARS = 60000 # Approx 15k tokens (using 4 chars/token heuristic)
+
+init_wandb()
 
 # basic qa
 def load_vtt_content(file_path):
@@ -97,7 +99,7 @@ async def on_ready():
     for guild in client.guilds:
         general_channel = discord.utils.get(guild.text_channels, name='general')
         if general_channel:
-            await general_channel.send("hello")
+            await general_channel.send("Hello! I'm here to assist you with the workshop transcript. Ask me anything! by typing: hey bot <your question>")
     
 @client.event
 async def on_message(message):
@@ -108,20 +110,25 @@ async def on_message(message):
 
     # Check if it's a feedback response in a thread
     if isinstance(message.channel, discord.Thread) and message.channel.owner_id == client.user.id:
-        #if content_lower.startswith(("yes", "no")):
-        # Store the feedback in both database and wandb
         try:
             thread_name = message.channel.name
             interaction_id = int(thread_name.split('-')[1]) if '-' in thread_name else None
             if interaction_id:
                 feedback = message.content
                 store_feedback(interaction_id, feedback)
+                
+                # Get the original bot response from the thread
+                async for msg in message.channel.history(limit=10):
+                    if msg.author == client.user and not msg.content.startswith(("Was this response helpful?", "Thank you for your feedback!")):
+                        original_response = msg.content
+                        break
+                
                 # Update W&B with feedback
                 wandb_log_interaction(
                     message.author.id,
                     message.channel.id,
-                    message.content,  # question not needed for feedback
-                    response,  # response not needed for feedback
+                    "",  # No need to include question for feedback
+                    original_response,  # Include the original response
                     message.channel.id,
                     feedback
                 )
