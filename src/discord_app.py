@@ -6,11 +6,13 @@ from dotenv import load_dotenv
 import re
 from webserver import keep_alive
 from database import init_db, log_interaction, store_feedback
+from wandb_logger import init_wandb, log_interaction as wandb_log_interaction
 
 load_dotenv()  # Load environment variables from .env
 
-# Initialize the database
+# Initialize the database and wandb
 init_db()
+init_wandb()
 
 # --- Determine and Load Transcript File --- 
 transcript_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "WS1-C2.vtt")
@@ -106,20 +108,29 @@ async def on_message(message):
 
     # Check if it's a feedback response in a thread
     if isinstance(message.channel, discord.Thread) and message.channel.owner_id == client.user.id:
-        if content_lower.startswith(("yes", "no")):
-            # Store the feedback
-            try:
-                thread_name = message.channel.name
-                interaction_id = int(thread_name.split('-')[1]) if '-' in thread_name else None
-                if interaction_id:
-                    feedback = message.content
-                    store_feedback(interaction_id, feedback)
-                    await message.channel.send("Thank you for your feedback!")
-                    await message.channel.edit(archived=True)
-                    return
-            except Exception as e:
-                print(f"Error storing feedback: {e}")
+        #if content_lower.startswith(("yes", "no")):
+        # Store the feedback in both database and wandb
+        try:
+            thread_name = message.channel.name
+            interaction_id = int(thread_name.split('-')[1]) if '-' in thread_name else None
+            if interaction_id:
+                feedback = message.content
+                store_feedback(interaction_id, feedback)
+                # Update W&B with feedback
+                wandb_log_interaction(
+                    message.author.id,
+                    message.channel.id,
+                    message.content,  # question not needed for feedback
+                    response,  # response not needed for feedback
+                    message.channel.id,
+                    feedback
+                )
+                await message.channel.send("Thank you for your feedback!")
+                await message.channel.edit(archived=True)
                 return
+        except Exception as e:
+            print(f"Error storing feedback: {e}")
+            return
 
     # Bot is mentioned or called
     is_asked = (
@@ -128,21 +139,18 @@ async def on_message(message):
     )
 
     if is_asked:
-        # Create a thread for the question
         try:
             thread = await message.create_thread(
                 name=f"q-{message.id}",
                 auto_archive_duration=60
             )
             
-            # Typing indicator in thread
             async with thread.typing():
                 response = await answer_question_basic(client_openai, workshop_context, message.content)
                 
-                # Send response in thread
                 await thread.send(response)
                 
-                # Log interaction and get the interaction ID
+                # Log interaction to both database and wandb
                 interaction_id = log_interaction(
                     message.author.id,
                     message.channel.id,
@@ -151,10 +159,15 @@ async def on_message(message):
                     thread.id
                 )
                 
-                # Rename thread with interaction ID for tracking
-                await thread.edit(name=f"question-{interaction_id}")
+                wandb_log_interaction(
+                    message.author.id,
+                    message.channel.id,
+                    message.content,
+                    response,
+                    thread.id
+                )
                 
-                # Ask for feedback
+                await thread.edit(name=f"question-{interaction_id}")
                 await thread.send("Was this response helpful? (Please reply with Yes/No and optionally add more details)")
                 
         except Exception as e:

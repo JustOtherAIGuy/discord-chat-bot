@@ -10,6 +10,7 @@ A Python-based Discord bot using RAG to get the transcription of the live sessio
 - Creates dedicated threads for each question for organized conversations
 - Collects user feedback on responses
 - Logs all interactions in a SQLite database for analysis
+- Tracks interactions and metrics in Weights & Biases
 - Greets users in the general channel on startup
 - Supports a web interface for monitoring bot interactions using Datasette
 
@@ -18,6 +19,7 @@ A Python-based Discord bot using RAG to get the transcription of the live sessio
 ### Prerequisites
 - A Discord bot token
 - An OpenAI API key
+- A Weights & Biases API key
 - A `.env` file to store environment variables
 
 ### Installation
@@ -36,6 +38,7 @@ A Python-based Discord bot using RAG to get the transcription of the live sessio
    ```
    DISCORD_BOT_TOKEN=<your-discord-bot-token>
    OPENAI_API_KEY=<your-openai-api-key>
+   WANDB_API_KEY=<your-wandb-api-key>
    ```
 
 4. Place the `.vtt` transcript file in the `data/` directory and name it `WS1-C2.vtt`.

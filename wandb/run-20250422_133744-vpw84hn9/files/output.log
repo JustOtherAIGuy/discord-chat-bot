@@ -1,0 +1,24 @@
+Traceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/src/discord_app.py", line 91, in <module>
+    client_openai = OpenAI()
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/openai/_client.py", line 105, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        version=__version__,
+        ^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        _strict_response_validation=_strict_response_validation,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/openai/_base_client.py", line 738, in __init__
+    self._client = http_client or httpx.Client(
+                                  ~~~~~~~~~~~~^
+        base_url=base_url,
+        ^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        limits=limits,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+TypeError: Client.__init__() got an unexpected keyword argument 'proxies'
