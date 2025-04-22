@@ -1,6 +1,7 @@
 import wandb
 import os
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
@@ -10,7 +11,7 @@ def init_wandb():
         project="discord-bot-interactions-production",
         config={
             "bot_version": "1.0.1",
-            "model": "gpt-4"
+            "model": "gpt-3.5-turbo-16k"
         }
     )
 

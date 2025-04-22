@@ -1,0 +1,74 @@
+Starting Discord bot...
+[30;1m2025-04-22 17:04:21[0m [34;1mINFO    [0m [35mdiscord.client[0m logging in using static token
+ * Serving Flask app ''
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8000
+ * Running on http://10.142.0.2:8000
+[33mPress CTRL+C to quit[0m
+[30;1m2025-04-22 17:04:21[0m [33;1mWARNING [0m [35mdiscord.client[0m Application has an interaction endpoint URL set, this means registered components and app commands will not be received by the library.
+[30;1m2025-04-22 17:04:22[0m [34;1mINFO    [0m [35mdiscord.gateway[0m Shard ID None has connected to Gateway (Session ID: 4be51af7ed48a3c9742c95cd5fc20c91).
+[30;1m2025-04-22 17:04:25[0m [31mERROR   [0m [35mdiscord.client[0m Ignoring exception in on_message
+[31mTraceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/discord/client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+          ~~~~^^^^^^^^^^^^^^^^^
+TypeError: on_message() missing 1 required positional argument: 'model_name'[0m
+[30;1m2025-04-22 17:04:25[0m [31mERROR   [0m [35mdiscord.client[0m Ignoring exception in on_message
+[31mTraceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/discord/client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+          ~~~~^^^^^^^^^^^^^^^^^
+TypeError: on_message() missing 1 required positional argument: 'model_name'[0m
+[30;1m2025-04-22 17:04:44[0m [31mERROR   [0m [35mdiscord.client[0m Ignoring exception in on_message
+[31mTraceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/discord/client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+          ~~~~^^^^^^^^^^^^^^^^^
+TypeError: on_message() missing 1 required positional argument: 'model_name'[0m
+[30;1m2025-04-22 17:04:45[0m [31mERROR   [0m [35mdiscord.client[0m Ignoring exception in on_message
+[31mTraceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/discord/client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+          ~~~~^^^^^^^^^^^^^^^^^
+TypeError: on_message() missing 1 required positional argument: 'model_name'[0m
+[30;1m2025-04-22 17:04:47[0m [31mERROR   [0m [35mdiscord.client[0m Ignoring exception in on_message
+[31mTraceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/discord/client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+          ~~~~^^^^^^^^^^^^^^^^^
+TypeError: on_message() missing 1 required positional argument: 'model_name'[0m
+[30;1m2025-04-22 17:04:47[0m [31mERROR   [0m [35mdiscord.client[0m Ignoring exception in on_message
+[31mTraceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/discord/client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+          ~~~~^^^^^^^^^^^^^^^^^
+TypeError: on_message() missing 1 required positional argument: 'model_name'[0m
+[30;1m2025-04-22 17:04:47[0m [31mERROR   [0m [35mdiscord.client[0m Ignoring exception in on_message
+[31mTraceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/discord/client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+          ~~~~^^^^^^^^^^^^^^^^^
+TypeError: on_message() missing 1 required positional argument: 'model_name'[0m
+[30;1m2025-04-22 17:04:55[0m [31mERROR   [0m [35mdiscord.client[0m Ignoring exception in on_message
+[31mTraceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/discord/client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+          ~~~~^^^^^^^^^^^^^^^^^
+TypeError: on_message() missing 1 required positional argument: 'model_name'[0m
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/threading.py", line 1540, in _shutdown
+    _thread_shutdown()
+KeyboardInterrupt:
+Exception ignored in atexit callback <function _start_and_connect_service.<locals>.teardown_atexit at 0x7ced028a5b20>:
+Traceback (most recent call last):
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/wandb/sdk/lib/service_connection.py", line 94, in teardown_atexit
+    conn.teardown(hooks.exit_code)
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/wandb/sdk/lib/service_connection.py", line 226, in teardown
+    self._router.join()
+  File "/home/pastor/projects/ai_sdlc_april_2025/discord-chat-bot/.venv/lib/python3.13/site-packages/wandb/sdk/interface/router.py", line 75, in join
+    self._thread.join()
+  File "/usr/lib/python3.13/threading.py", line 1092, in join
+    self._handle.join(timeout)
+KeyboardInterrupt:
