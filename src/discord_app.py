@@ -97,7 +97,7 @@ client_openai = OpenAI()
 async def on_ready():
     # Send the message "hello" only to the general channel
     for guild in client.guilds:
-        general_channel = discord.utils.get(guild.text_channels, name='general')
+        general_channel = discord.utils.get(guild.text_channels, name='random')
         if general_channel:
             await general_channel.send("Hello! I'm here to assist you with the workshop transcript. Ask me anything! by typing: hey bot <your question>")
     
