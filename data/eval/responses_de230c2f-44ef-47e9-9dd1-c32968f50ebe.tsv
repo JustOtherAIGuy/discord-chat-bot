@@ -1,0 +1,90 @@
+Question	Response
+"What are the key learning outcomes of this workshop series on LLM-powered applications?
+"	"Based on the provided transcript, the key learning outcomes of this workshop series on LLM-powered applications are:
+
+- Understanding and applying evaluation-driven development (EDD) for LLM-powered software, focusing on iterative cycles of building, monitoring, evaluating, and improving applications.
+- Gaining practical, first-principles knowledge for building LLM-powered apps, with an emphasis on workflows, iteration, and hands-on development rather than just tools or trends.
+- Learning how to move beyond proof-of-concept demos to production-grade systems that scale and are robust.
+- Developing skills in prompt engineering, embeddings, fine-tuning, business logic, unit testing, versioning, and continuous integration for LLM applications.
+- Mastering observability, logging, monitoring, and tracing of LLM systems to understand and improve performance.
+- Building and using evaluation harnesses and minimum viable evaluations (MVEs) to assess and iterate on LLM applications, even before real users exist.
+- Connecting micro-level LLM performance metrics to macro-level business outcomes and understanding how to align outputs with business value.
+- Learning from practitioners and guest experts at the forefront of the field, and engaging in a collaborative, community-driven learning environment.
+
+The course is not focused on deep dives into every LLM tool or trend, nor is it a plug-and-play AI recipe book. Instead, it aims to teach participants how to iterate, debug, adapt, and build robust, production-ready LLM-powered applications."
+"How is this course different from others that focus on tools like LangChain or agentic frameworks?
+"	"This course is different because its primary focus is on principles and workflows rather than on specific tools like LangChain or agentic frameworks. The course emphasizes:
+
+- Evaluation-driven development: Building, monitoring, evaluating, and iterating rapidly due to the non-deterministic nature of LLM-powered software.
+- Observability, testing, and evaluation: Teaching how to iterate, debug, and adapt, not just follow step-by-step templates.
+- Practical, first-principles approach: Focusing on workflows, iteration, and hands-on development to build production-grade systems that scale beyond proof of concepts and demos.
+- Not a deep dive into every LLM tool or trend: While tools and frameworks are introduced, the main goal is to teach skills and principles that will remain relevant even as specific tools change or become obsolete.
+
+In summary, the course is workflow- and principle-focused, not tool-focused, aiming to equip participants with lasting skills for building robust LLM-powered applications."
+"Will the course include hands-on projects or just lectures?
+"	The course will include hands-on projects. The transcript mentions that the course is practical, focusing on workflows, iteration, and hands-on development. Participants will be building production-grade systems, and there are references to immediately starting to build apps together, working in pods, and using tools like Github, Codespaces, and Discord for collaborative building.
+"How do you balance theory and practice in the course?
+"	Based on the transcript, the course balances theory and practice by focusing on practical, first-principles approaches to building LLM-powered applications. The emphasis is on workflows, iteration, and hands-on development rather than just covering the latest tools or trends. Participants are encouraged to build production-grade systems, iterate rapidly, and engage in evaluation-driven development. The course includes both conceptual discussions (such as the importance of evaluation, observability, and non-determinism) and immediate hands-on activities (like building apps together in workshops). There are also opportunities to learn from practitioners and guest lectures, and participants are supported in using various tools and compute credits to experiment and build during the course.
+"How is this course tailored for both data scientists and software engineers?
+"	"Based on the transcript, this course is tailored for both data scientists and software engineers in the following ways:
+
+- The course is designed for ""data scientists, software engineers, and whoever else wants to get on this rocket ship together,"" indicating an inclusive approach (Transcript 1).
+- The instructors have backgrounds in both data science and software engineering, with Hugo Bowne-Anderson coming from scientific research and data science, and Stefan Krawczyk from MLops and productionizing machine learning (Transcripts 4, 6, 9).
+- The course content focuses on practical, hands-on workflows for building LLM-powered applications, emphasizing both the scientific (data, evaluation, iteration) and engineering (production, deployment, monitoring) aspects (Transcripts 50, 55, 57).
+- There is a focus on bridging the gap between prototyping (often associated with data science) and productionization (often associated with software engineering), as highlighted by Stefan’s experience and the course’s emphasis on evaluation-driven development and robust workflows (Transcripts 9, 15, 16, 57).
+- The course includes support from ""builders in residence"" with backgrounds in both data science and software engineering, offering diverse perspectives and help (Transcripts 23, 25, 29).
+- Tools and workflows are chosen to be accessible and useful for both groups, such as using GitHub, Codespaces, Discord, and practical compute credits, making it easy for participants from either background to get started (Transcripts 87–89).
+- The course is not just about tools or the latest trends, but about developing robust principles and workflows that are relevant to both data scientists and software engineers (Transcripts 52, 181–184).
+
+In summary, the course is structured to address the needs and strengths of both data scientists and software engineers by focusing on practical, production-ready workflows, robust evaluation, and hands-on building, with support from instructors and mentors from both backgrounds."
+"What is the duration of the course?
+"	I don't know based on the provided transcript. The duration of the course is not mentioned.
+"Can you explain what “evaluation-driven development” means in more detail?
+"	"Evaluation-driven development (EDD) is an approach to building LLM-powered (and more generally, machine learning-powered) applications where the focus is on continuously monitoring, evaluating, and iterating on your system based on real data and performance metrics, rather than just building to a fixed set of specifications and releasing versions in a linear way.
+
+Key points from the transcript:
+
+- EDD recognizes that LLM-powered software is non-deterministic: the same inputs can produce different outputs, and real-world user behavior is unpredictable.
+- Instead of the traditional software cycle (spec → build → deploy → maybe update later), EDD emphasizes a rapid loop: build → deploy → monitor → evaluate → iterate.
+- Evaluation is not just about checking if the LLM gives good answers, but also about tying those outputs to business metrics and real-world outcomes.
+- Early in the process, you can create a minimum viable evaluation (MVE) alongside your minimum viable product (MVP): synthesize user queries, label outputs by hand, and use this labeled data to build an evaluation harness (a reproducible script or system to test your app).
+- Evaluation can be automated using LLMs as judges, but it’s important to align their judgments with human expectations and business goals.
+- EDD is about building robust systems that go beyond flashy demos, focusing on observability, testing, and continuous improvement based on data and failure analysis.
+
+In summary: Evaluation-driven development is a workflow where you constantly monitor and assess your LLM app’s performance (both technically and in terms of business value), and use those insights to guide rapid, iterative improvements. This is essential because of the unpredictable and evolving nature of LLM-powered applications."
+"What are some examples of an “evaluation harness” mentioned in the intro?
+"	"An evaluation harness is described as a script or something reproducible that you use to evaluate your system. Examples mentioned include:
+
+- A basic harness with a few tests measuring latency, cost, and things of business interest.
+- Using synthetic user queries to get responses from your MVP, labeling them by hand, and then using the labeled data to build a basic evaluation harness (such as a test set and LLM as a judge).
+- In traditional ML, an evaluation harness would be a test set used to evaluate and improve your MVP.
+
+So, examples include scripts or systems that run a set of queries through your application, collect outputs, and compare them to expected results or have them evaluated (by hand or by an LLM as a judge) for quality, latency, cost, or business relevance."
+"How do you measure success in a non-deterministic LLM system?
+"	"To measure success in a non-deterministic LLM system, the workshop emphasizes evaluation-driven development (EDD). This involves:
+
+- Building, monitoring, evaluating, and iterating rapidly on your system.
+- Creating a minimum viable evaluation (MVE) alongside your minimum viable product (MVP). This means synthesizing realistic queries, labeling outputs by hand, and using this labeled data to build an evaluation harness (a reproducible script or test set).
+- Using both human and LLM-as-a-judge evaluations to assess outputs.
+- Logging and monitoring inputs and outputs to quantify performance and identify failure modes.
+- Aligning micro-level LLM call evaluations with macro-level business metrics (e.g., do generated emails result in hiring good candidates? Is the process more efficient and cost-effective than before?).
+- Iterating based on evaluation results, using prompt engineering, business logic changes, or fine-tuning if necessary.
+
+In summary, success is measured by continuous, data-driven evaluation of both the LLM’s outputs and their impact on business goals, not just by initial demo performance."
+"What’s the difference between fine-tuning, prompting, and using embeddings?
+"	"Based on the provided transcript:
+
+- Prompting: This involves crafting or adjusting the input prompts you send to an LLM (Large Language Model) to get the desired output. Often, you can ""prompt your way out"" of many issues without needing to change the underlying model.
+
+- Fine-tuning: This is the process of training an existing model further on specific, domain-relevant data to improve its performance for particular tasks or contexts. Fine-tuning is sometimes used when you need strong domain-specific expertise or want to migrate to smaller models using data from previous conversations.
+
+- Embeddings: These are vector representations of data (like text) that capture semantic meaning. Embeddings are often used for tasks like retrieval (finding relevant documents or information) and can be fine-tuned or customized for better performance in specific applications, such as building re-rankers for retrieval systems.
+
+In summary: Prompting is about changing the input to the model, fine-tuning is about changing the model itself with new data, and embeddings are about representing data in a way that models can use for tasks like search or similarity."
+Could you explain how observability applies to LLM apps?	"Observability in LLM (Large Language Model) apps refers to the ability to monitor, trace, and understand the behavior and performance of your application, especially given the non-deterministic and complex nature of LLM-powered systems. According to the workshop transcript, observability involves:
+
+- Logging and Monitoring: Capturing data such as inputs, outputs, and traces of LLM calls in a human-readable form. This helps you see what prompts are being sent, what responses are returned, and how the system behaves in different scenarios.
+- Evaluation: Quantifying performance by looking at the data and results, classifying failure modes, and using domain expertise to assess outputs.
+- Iteration: Using the insights from monitoring and evaluation to rapidly improve prompts, business logic, or even model choices.
+
+Observability is foundational because LLM apps can behave unpredictably, and without proper monitoring and evaluation, it's difficult to understand, debug, or improve them. The course emphasizes that robust observability—logging, tracing, and evaluating—is essential for building production-grade LLM applications that can be iterated on and improved over time."
