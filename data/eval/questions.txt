@@ -1,0 +1,11 @@
+What are the key learning outcomes of this workshop series on LLM-powered applications?
+How is this course different from others that focus on tools like LangChain or agentic frameworks?
+Will the course include hands-on projects or just lectures?
+How do you balance theory and practice in the course?
+How is this course tailored for both data scientists and software engineers?
+What is the duration of the course?
+Can you explain what “evaluation-driven development” means in more detail?
+What are some examples of an “evaluation harness” mentioned in the intro?
+How do you measure success in a non-deterministic LLM system?
+What’s the difference between fine-tuning, prompting, and using embeddings?
+Could you explain how observability applies to LLM apps?
