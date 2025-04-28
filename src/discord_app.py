@@ -19,7 +19,6 @@ transcript_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data
 
 MAX_CHARS = 60000 # Approx 15k tokens (using 4 chars/token heuristic)
 
-init_wandb()
 
 # basic qa
 def load_vtt_content(file_path):
@@ -60,8 +59,9 @@ if original_length > MAX_CHARS:
     workshop_context = workshop_context[:MAX_CHARS]
 
 
-async def answer_question_basic(client_openai, context, question):
+async def answer_question_basic(context, question):
     """Minimal function to ask OpenAI a question based on provided context."""
+    client_openai = OpenAI()
     system_prompt = """
     You are a helpful assistant. Answer questions based ONLY on the provided context from the workshop transcript.
     If the answer is not in the context, say you don't know based on the provided transcript.
@@ -90,8 +90,14 @@ intents.message_content = True
 
 client = discord.Client(intents=intents)
 
-client_openai = OpenAI()
 
+def bot_is_mentioned(content: str, client_user) -> bool:
+    """Checks if the bot is mentioned or addressed in the message content."""
+    # Use word boundaries (\b) to avoid matching parts of other words
+    return (
+        client_user.mention in content
+        or re.search(r"\bbot\b", content, re.IGNORECASE) is not None
+    )
 
 @client.event
 async def on_ready():
@@ -139,13 +145,8 @@ async def on_message(message):
             print(f"Error storing feedback: {e}")
             return
 
-    # Bot is mentioned or called
-    is_asked = (
-        client.user.mention in message.content or
-        any(word in content_lower for word in ["bot", "Bot", "hey bot"])
-    )
 
-    if is_asked:
+    if bot_is_mentioned(content=message.content, client_user=client.user):
         try:
             thread = await message.create_thread(
                 name=f"q-{message.id}",
@@ -153,7 +154,7 @@ async def on_message(message):
             )
             
             async with thread.typing():
-                response = await answer_question_basic(client_openai, workshop_context, message.content)
+                response = await answer_question_basic(workshop_context, message.content)
                 
                 await thread.send(response)
                 
@@ -188,6 +189,7 @@ def run_discord_bot():
     client.run(discord_token)
 
 if __name__ == "__main__":
+    init_wandb()
     # Retrieve the token from the environment variable populated by the Modal secret
     keep_alive()  # Start the Flask server
     run_discord_bot()
