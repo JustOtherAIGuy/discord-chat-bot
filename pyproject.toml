@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "discord-chat-bot"
+version = "0.1.0"
+requires-python = ">=3.9" # Specify your minimum Python version
+dependencies = [
+    # List your project dependencies here, e.g.:
+    # "discord.py",
+    # "openai",
+    # "python-dotenv",
+    # "flask",
+    # "waitress", # If you use waitress with flask
+    # "wandb",
+    # Add other dependencies from requirements.txt if you have one
+]
+
+[tool.setuptools.packages.find]
+where = ["src"] # Look for packages in the src directory
+
+[tool.pytest.ini_options]
+pythonpath = [
+  ".", "src"
+]
+testpaths = [
+    "tests",
+] 
