@@ -93,6 +93,14 @@ client = discord.Client(intents=intents)
 client_openai = OpenAI()
 
 
+def bot_is_mentioned(content: str, client_user) -> bool:
+    """Checks if the bot is mentioned or addressed in the message content."""
+    # Use word boundaries (\b) to avoid matching parts of other words
+    return (
+        client_user.mention in content
+        or re.search(r"\bbot\b", content, re.IGNORECASE) is not None
+    )
+
 @client.event
 async def on_ready():
     # Send the message "hello" only to the general channel
@@ -139,13 +147,7 @@ async def on_message(message):
             print(f"Error storing feedback: {e}")
             return
 
-    # Bot is mentioned or called
-    is_asked = (
-        client.user.mention in message.content or
-        any(word in content_lower for word in ["bot", "Bot", "hey bot"])
-    )
-
-    if is_asked:
+    if bot_is_mentioned(content=message.content, client_user=client.user):
         try:
             thread = await message.create_thread(
                 name=f"q-{message.id}",
