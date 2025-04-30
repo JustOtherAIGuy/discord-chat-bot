@@ -1,0 +1,30 @@
+Question	Response
+"What are the key learning outcomes of this workshop series on LLM-powered applications?
+"	The key learning outcomes of this workshop series on LLM-powered applications include understanding the workflow and non-deterministic nature of LLM-powered software, learning how to build production-grade systems that scale beyond proof of concepts, gaining knowledge on evaluation-driven development and the importance of monitoring and evaluation, and developing skills in prompt engineering, embeddings, and fine-tuning business logic.
+"How is this course different from others that focus on tools like LangChain or agentic frameworks?
+"	The course focuses on the workflow and non-deterministic nature of building Llm-powered apps, rather than just teaching specific tools or frameworks. It emphasizes evaluation-driven development, monitoring, testing, and iteration to build robust and scalable systems. The goal is to teach principles that will be applicable even as new tools and trends emerge.
+"Will the course include hands-on projects or just lectures?
+"	The course will include hands-on projects in addition to lectures.
+"How do you balance theory and practice in the course?
+"	The transcript does not provide information about how theory and practice are balanced in the course.
+"How is this course tailored for both data scientists and software engineers?
+"	The course is tailored for both data scientists and software engineers by focusing on building LLN-powered applications and providing practical, hands-on development workflows. It covers topics such as prompt engineering, embeddings, fine-tuning business logic, testing, and evaluation. The course aims to bridge the gap between scientific research and production-level software development, allowing both data scientists and software engineers to learn and collaborate on building robust LLN-powered applications.
+"What is the duration of the course?
+"	The duration of the course is not mentioned in the provided context.
+"Can you explain what “evaluation-driven development” means in more detail?
+"	Evaluation-driven development refers to a development approach that emphasizes continuous evaluation and iteration based on feedback and performance metrics. It involves building, monitoring, and evaluating machine learning models or applications to ensure they meet desired objectives and performance standards. This approach involves collecting data, labeling outputs, building evaluation systems, and using the evaluation results to guide improvements and iterations. The goal is to align the outputs of the system with business metrics and optimize workflows to achieve measurable return on investment.
+"What are some examples of an “evaluation harness” mentioned in the intro?
+"	"Some examples of an ""evaluation harness"" mentioned in the intro are scripts or tools used to evaluate the performance of a system, such as unit tests, test sets, and automated assessments."
+"How do you measure success in a non-deterministic LLM system?
+"	To measure success in a non-deterministic LLM system, you need to evaluate the system's performance based on specific metrics and business goals. This can include measuring the accuracy of the system's outputs, evaluating the system's ability to generate relevant and useful information, and assessing its efficiency and cost-effectiveness compared to previous systems. It's important to align the evaluation with the desired outcomes and iterate on the system based on the evaluation results.
+"What’s the difference between fine-tuning, prompting, and using embeddings?
+"	"Fine-tuning, prompting, and using embeddings are different approaches in the context of building Llm-powered applications.
+
+1. Fine-tuning: Fine-tuning involves taking a pre-trained language model and training it further on a specific task or domain-specific data. It allows the model to adapt to the specific requirements of the task at hand.
+
+2. Prompting: Prompting involves providing a specific instruction or query to the language model to guide its response. By carefully crafting prompts, developers can influence the output of the model and make it more aligned with their desired outcome.
+
+3. Using embeddings: Embeddings are vector representations of words or sentences that capture their semantic meaning. By using embeddings, developers can compare and measure the similarity between different pieces of text, enabling tasks such as information retrieval or clustering.
+
+These approaches can be used individually or in combination to improve the performance and behavior of Llm-powered applications."
+Could you explain how observability applies to LLM apps?	Observability in LLM apps refers to the ability to understand and monitor the behavior of the model and the system as a whole. It involves logging and capturing data, evaluating model outputs, and monitoring performance and metrics. Observability helps identify issues, track performance, and make improvements in the LLM app. It allows developers to gain insights into how the model is behaving, detect errors or biases, and ensure that the app is meeting the desired business goals.

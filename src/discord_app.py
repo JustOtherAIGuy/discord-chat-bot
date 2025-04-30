@@ -19,6 +19,7 @@ transcript_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data
 
 MAX_CHARS = 60000 # Approx 15k tokens (using 4 chars/token heuristic)
 
+# init_wandb()
 
 # basic qa
 def load_vtt_content(file_path):
@@ -65,12 +66,12 @@ async def answer_question_basic(context, question):
     system_prompt = """
     You are a helpful assistant. Answer questions based ONLY on the provided context from the workshop transcript.
     If the answer is not in the context, say you don't know based on the provided transcript.
-    Keep your answers concise.
+    Answer in a 2-3 sentences only. Be thorough, but concise.
     """
 
     try:
         response = client_openai.chat.completions.create(
-            model="gpt-3.5-turbo-16k", # Use 16k model for potentially long transcripts
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Context (Workshop Transcript):\n\n{context}\n\nQuestion: {question}"}
