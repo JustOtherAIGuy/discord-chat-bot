@@ -99,6 +99,14 @@ def bot_is_mentioned(content: str, client_user) -> bool:
         or re.search(r"\bbot\b", content, re.IGNORECASE) is not None
     )
 
+def bot_is_mentioned(content: str, client_user) -> bool:
+    """Checks if the bot is mentioned or addressed in the message content."""
+    # Use word boundaries (\b) to avoid matching parts of other words
+    return (
+        client_user.mention in content
+        or re.search(r"\bbot\b", content, re.IGNORECASE) is not None
+    )
+
 @client.event
 async def on_ready():
     # Send the message "hello" only to the general channel
@@ -144,7 +152,6 @@ async def on_message(message):
         except Exception as e:
             print(f"Error storing feedback: {e}")
             return
-
 
     if bot_is_mentioned(content=message.content, client_user=client.user):
         try:
