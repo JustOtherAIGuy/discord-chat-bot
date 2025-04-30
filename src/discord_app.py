@@ -60,8 +60,9 @@ if original_length > MAX_CHARS:
     workshop_context = workshop_context[:MAX_CHARS]
 
 
-async def answer_question_basic(client_openai, context, question):
+async def answer_question_basic(context, question):
     """Minimal function to ask OpenAI a question based on provided context."""
+    client_openai = OpenAI()
     system_prompt = """
     You are a helpful assistant. Answer questions based ONLY on the provided context from the workshop transcript.
     If the answer is not in the context, say you don't know based on the provided transcript.
@@ -90,14 +91,28 @@ intents.message_content = True
 
 client = discord.Client(intents=intents)
 
-client_openai = OpenAI()
 
+def bot_is_mentioned(content: str, client_user) -> bool:
+    """Checks if the bot is mentioned or addressed in the message content."""
+    # Use word boundaries (\b) to avoid matching parts of other words
+    return (
+        client_user.mention in content
+        or re.search(r"\bbot\b", content, re.IGNORECASE) is not None
+    )
+
+def bot_is_mentioned(content: str, client_user) -> bool:
+    """Checks if the bot is mentioned or addressed in the message content."""
+    # Use word boundaries (\b) to avoid matching parts of other words
+    return (
+        client_user.mention in content
+        or re.search(r"\bbot\b", content, re.IGNORECASE) is not None
+    )
 
 @client.event
 async def on_ready():
     # Send the message "hello" only to the general channel
     for guild in client.guilds:
-        general_channel = discord.utils.get(guild.text_channels, name='general')
+        general_channel = discord.utils.get(guild.text_channels, name='random')
         if general_channel:
             await general_channel.send("Hello! I'm here to assist you with the workshop transcript. Ask me anything! by typing: hey bot <your question>")
     
@@ -139,13 +154,7 @@ async def on_message(message):
             print(f"Error storing feedback: {e}")
             return
 
-    # Bot is mentioned or called
-    is_asked = (
-        client.user.mention in message.content or
-        any(word in content_lower for word in ["bot", "Bot", "hey bot"])
-    )
-
-    if is_asked:
+    if bot_is_mentioned(content=message.content, client_user=client.user):
         try:
             thread = await message.create_thread(
                 name=f"q-{message.id}",
@@ -153,7 +162,7 @@ async def on_message(message):
             )
             
             async with thread.typing():
-                response = await answer_question_basic(client_openai, workshop_context, message.content)
+                response = await answer_question_basic(workshop_context, message.content)
                 
                 await thread.send(response)
                 
@@ -188,6 +197,7 @@ def run_discord_bot():
     client.run(discord_token)
 
 if __name__ == "__main__":
+    init_wandb()
     # Retrieve the token from the environment variable populated by the Modal secret
     keep_alive()  # Start the Flask server
     run_discord_bot()
