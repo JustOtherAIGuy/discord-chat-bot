@@ -8,7 +8,7 @@ from wandb_logger import init_wandb, log_interaction as wandb_log_interaction
 from vector_emb import llm_answer_question
 
 # Initialize the database and wandb
-init_db()
+# init_db()
 # --- Determine and Load Transcript File --- 
 
 transcript_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "WS1-C2.vtt")
