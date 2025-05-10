@@ -1,9 +1,9 @@
 import modal
 from pathlib import Path
 import os
-
+from database import DB_FILE
 # Use hyphenated name to match the actual file (discord-answer-logs.db)
-DB_FILE = "discord-answer-logs.db"
+
 #DB_FILE = "logs.db"
 
 #app = modal.App("discord-bot-datasette")
