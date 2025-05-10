@@ -3,7 +3,8 @@ import datetime
 import os
 import uuid
 import json
-from deploy_datasette import DB_FILE
+
+DB_FILE = "discord-answer-logs.db"
 # Define the path inside the Modal volume
 DB_PATH_IN_VOLUME = f"/data/db/{DB_FILE}"
 
