@@ -201,7 +201,7 @@ async def on_message(message):
 
 
 def run_discord_bot():
-    discord_token = os.environ["DISCORD_BOT_TOKEN_HUGO"]
+    discord_token = os.environ["DISCORD_BOT_TOKEN"]
     if not discord_token:
         raise ValueError("DISCORD_TOKEN environment variable not set")
     print("Starting Discord bot...")
