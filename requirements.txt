@@ -6,3 +6,4 @@ datasette==0.64.3
 sqlite-utils==3.36
 wandb==0.19.9
 chromadb
+tiktoken
