@@ -1,10 +1,11 @@
 import discord
 from discord.ext import commands
 import os
+import re
+
 from webserver import keep_alive
 from database import init_db, log_interaction, store_feedback
 from wandb_logger import init_wandb, log_interaction as wandb_log_interaction
-
 from vector_emb import llm_answer_question
 
 # Initialize the database and wandb
