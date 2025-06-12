@@ -173,9 +173,8 @@ async def discord_bot_runner():
                     log_id = result["log_id"]
                     await thread.send(f"**Answer:** {answer}")
                     feedback_msg = await thread.send(
-                        "Was this answer helpful? Please reply with:\n"
-                        "👍 for helpful\n"
-                        "👎 for not helpful\n"
+                        "\nWas this answer helpful? Please reply with:\n"
+                        "👍 for helpful or 👎 for not helpful\n"
                         "Or provide additional feedback!"
                     )
                     await feedback_msg.add_reaction("👍")
