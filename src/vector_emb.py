@@ -8,9 +8,13 @@ from process_transcript import chunk_workshop_transcript, count_tokens
 from dotenv import load_dotenv
 from typing import List, Dict, Any
 
-transcript_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "WS1-C2.vtt")
+# Support both local and Modal paths
+if os.path.exists("/root/data/WS1-C2.vtt"):
+    transcript_path = "/root/data/WS1-C2.vtt"
+else:
+    transcript_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "WS1-C2.vtt")
 COLLECTION_NAME = "workshop_chunks"
-CHROMA_DB_PATH = "chroma_db"
+CHROMA_DB_PATH = "/root/chroma_db" if os.path.exists("/root/chroma_db") else "chroma_db"
 EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_MAX_TOKENS = 12000
 DEFAULT_MAX_CHUNKS = 5

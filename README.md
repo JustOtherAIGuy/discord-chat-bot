@@ -9,11 +9,12 @@ Model design
 
 ## Features
 - Deployed using Modal for serverless execution.
-- Connects to Discord using the Discord API via webhooks.
+- Connects to Discord using the Discord Gateway API to listen for messages.
 - Loads a workshop transcript from a `.vtt` file for context, storing embeddings in ChromaDB.
 - Uses OpenAI's GPT model (via `vector_emb.py`) to answer user questions based on the transcript context.
-- Responds to Discord slash commands (`/api`).
-- Collects user feedback on responses using interactive buttons (👍/👎).
+- Responds to mentions (@bot) and messages containing "bot".
+- Creates threads for each question to keep conversations organized.
+- Collects user feedback on responses via text replies in threads.
 - Logs all interactions in a SQLite database stored in a persistent Modal Volume.
 - Supports a web interface for monitoring bot interactions using Datasette (requires separate setup, see `deploy_datasette.py`).
 - Includes an evaluation system (`src/eval.py`) to test bot responses against predefined questions.
@@ -21,7 +22,7 @@ Model design
 ## Getting Started
 
 ### Prerequisites
-- A Discord bot token, client ID, and public key.
+- A Discord bot token and client ID (public key not needed for message-based bots).
 - An OpenAI API key.
 - A Weights & Biases API key (for logging, optional but recommended).
 - Modal account and CLI installed ([Modal Setup Guide](https://modal.com/docs/guide/installation)).
@@ -41,42 +42,68 @@ Model design
 
 3. Set up Modal Secrets:
    - Create a Modal secret named `openai-secret` with your `OPENAI_API_KEY`.
-   - Create a Modal secret named `discord-secret-2` with your `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`, and `DISCORD_PUBLIC_KEY`.
+   - Create a Modal secret named `discord-secret-2` with your `DISCORD_BOT_TOKEN` and `DISCORD_CLIENT_ID`.
    - (Optional) Create a Modal secret named `wandb` with your `WANDB_API_KEY`.
    ```bash
    modal secret create openai-secret OPENAI_API_KEY=<your-openai-api-key>
-   modal secret create discord-secret-2 DISCORD_BOT_TOKEN=<your-discord-bot-token> DISCORD_CLIENT_ID=<your-discord-client-id> DISCORD_PUBLIC_KEY=<your-discord-public-key>
+   modal secret create discord-secret-2 DISCORD_BOT_TOKEN=<your-discord-bot-token> DISCORD_CLIENT_ID=<your-discord-client-id>
    # Optional
    modal secret create wandb WANDB_API_KEY=<your-wandb-api-key>
    ```
-   *(Note: The secret name `discord-secret-2` is used in the code; ensure consistency)*
+   *(Note: DISCORD_PUBLIC_KEY is not needed for message-based bots)*
 
 4. Place the `.vtt` transcript file in the `data/` directory (e.g., `data/WS1-C2.vtt`). The code currently expects `WS1-C2.vtt`.
 
 ### Usage
 
-1.  **Register the Slash Command:** Run this command once to register the `/api` slash command with Discord.
+#### Quick Deploy (Recommended)
+Use the deployment script for an easy setup:
+```bash
+python deploy.py
+```
+
+This script will:
+- Check prerequisites (Modal CLI, data files, authentication)
+- Guide you through setting up secrets
+- Register the slash command
+- Deploy the bot
+- Provide next steps
+
+#### Manual Deployment
+
+1.  **Install Modal CLI:** 
     ```bash
-    modal run src/modal_discord_bot.py::create_slash_command
+    pip install modal
+    modal setup
     ```
 
-2.  **Deploy the Bot:** Deploy the application to Modal. This will start the web endpoint that listens for Discord interactions.
+2.  **Set up Modal Secrets:**
     ```bash
+    modal secret create openai-secret OPENAI_API_KEY=<your-openai-key>
+    modal secret create discord-secret-2 \
+      DISCORD_BOT_TOKEN=<your-bot-token> \
+      DISCORD_CLIENT_ID=<your-client-id>
+    ```
+
+3.  **Deploy and Start the Bot:** 
+    ```bash
+    # Option 1: Use the dedicated start script (recommended)
+    python start_bot.py
+    
+    # Option 2: Manual deployment
     modal deploy src/modal_discord_bot.py
+    modal serve src/modal_discord_bot.py::serve_discord_bot
     ```
-    Modal will output a webhook URL.
-
-3.  **Configure Discord Interactions Endpoint:**
-    - Go to your application in the [Discord Developer Portal](https://discord.com/developers/applications).
-    - Navigate to the **General Information** tab.
-    - Paste the Modal webhook URL (including the `/api` path, e.g., `https://your-modal-url.modal.run/api`) into the **Interactions Endpoint URL** field.
-    - Save changes. Discord will verify the endpoint.
 
 4.  **Invite the Bot:** Go to the **Installation** section in the Discord Developer Portal and use the provided link to invite the bot to your server.
 
-5.  **Interact:** Use the `/api` command in your Discord server to ask questions.
+5.  **Interact:** Mention the bot in any channel to ask questions.
     ```
-    /api question: What is Modal?
+    @botname What is Modal?
+    ```
+    Or send a message containing "bot":
+    ```
+    Hey bot, can you help me with something?
     ```
 
 ### Evaluating Bot Responses

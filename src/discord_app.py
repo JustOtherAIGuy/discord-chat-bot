@@ -1,55 +1,24 @@
-import discord
-from discord.ext import commands
+# NOTE: This file is deprecated. Use modal_discord_bot.py for Modal deployment.
+# This file is kept for reference but modal_discord_bot.py is the active implementation.
+
 import os
 import re
+import discord
+from discord.ext import commands
 
-from webserver import keep_alive
+# webserver module was removed - Modal handles HTTP serving
+# from webserver import keep_alive
+
 from database import init_db, log_interaction, store_feedback
-#from wandb_logger import init_wandb, log_interaction as wandb_log_interaction
 from vector_emb import llm_answer_question, answer_question
+from process_transcript import load_vtt_content
 
-# Initialize the database and wandb
-# init_db()
-# --- Determine and Load Transcript File --- 
+
 
 transcript_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "WS1-C2.vtt")
 
 MAX_CHARS = 60000 # Approx 15k tokens (using 4 chars/token heuristic)
 
-# init_wandb()
-
-# basic qa
-def load_vtt_content(file_path):
-    """Reads a VTT file and extracts the text content, skipping metadata and timestamps."""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-    except FileNotFoundError:
-        print(f"Error: Transcript file not found at {file_path}")
-        return None
-    except Exception as e:
-        print(f"Error reading transcript file: {e}")
-        return None
-
-    content_lines = []
-    is_content = False
-    for line in lines:
-        line = line.strip()
-        # Skip empty lines, WEBVTT header, and timestamp lines
-        if not line or line == 'WEBVTT' or '-->' in line:
-            is_content = False
-            continue
-        # Skip lines that look like metadata (e.g., NOTE, STYLE)
-        if re.match(r'^[A-Z]+(\s*:.*)?$', line):
-             is_content = False
-             continue
-        # If it's not metadata or timestamp, assume it's content
-        # A simple heuristic: content often follows a timestamp line
-        # A better check might be needed for complex VTTs
-        # We will just append any line that doesn't match the skip conditions
-        content_lines.append(line)
-        
-    return " ".join(content_lines)
 
 workshop_context = load_vtt_content(transcript_file)
 original_length = len(workshop_context)
@@ -59,13 +28,15 @@ if original_length > MAX_CHARS:
 
 async def answer_question_basic(context, question):
     """Minimal function to ask OpenAI a question based on provided context."""
+
+    from openai import OpenAI
     client_openai = OpenAI()
+
     system_prompt = """
     You are a helpful assistant. Answer questions based ONLY on the provided context from the workshop transcript.
     If the answer is not in the context, say you don't know based on the provided transcript.
     Answer in a 2-3 sentences only. Be thorough, but concise.
     """
-
     try:
         response = client_openai.chat.completions.create(
             model="gpt-4.1",
@@ -129,16 +100,7 @@ async def handle_feedback(message, thread_name):
             if msg.author == client.user and not msg.content.startswith(("Was this response helpful?", "Thank you for your feedback!")):
                 original_response = msg.content
                 break
-        
-        # Update W&B with feedback
-        # wandb_log_interaction(
-        #     message.author.id,
-        #     message.channel.id,
-        #     "",  # No need to include question for feedback
-        #     original_response,  # Include the original response
-        #     message.channel.id,
-        #     feedback
-        # )
+
         await message.channel.send("Thank you for your feedback!")
         await message.channel.edit(archived=True)
         return True
@@ -170,14 +132,6 @@ async def create_and_handle_thread(message, question):
                 thread.id
             )
             
-            # wandb_log_interaction(
-            #     message.author.id,
-            #     message.channel.id,
-            #     question,
-            #     response,
-            #     thread.id
-            # )
-            
             await thread.edit(name=f"question-{interaction_id}")
             await thread.send("Was this response helpful? (Please reply with Yes/No and optionally add more details)")
             
@@ -202,7 +156,6 @@ async def on_message(message):
     if is_bot_mentioned(message, client):
         await create_and_handle_thread(message, message.content)
 
-
 def run_discord_bot():
     discord_token = os.environ["DISCORD_BOT_TOKEN"]
     if not discord_token:
@@ -211,8 +164,11 @@ def run_discord_bot():
     client.run(discord_token)
 
 if __name__ == "__main__":
-    #init_wandb()
-    # Retrieve the token from the environment variable populated by the Modal secret
-    keep_alive()  # Start the Flask server
-    run_discord_bot()
+    print("⚠️  WARNING: This file is deprecated!")
+    print("   Use 'python deploy.py' or 'modal run src/modal_discord_bot.py::run_discord_bot' instead")
+    print("   This file is kept for reference only.")
+    
+    # Deprecated implementation below:
+    # keep_alive()  # Start the Flask server - REMOVED: webserver.py deleted
+    # run_discord_bot()
 

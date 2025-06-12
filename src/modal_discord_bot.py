@@ -1,615 +1,381 @@
-# ---
-# deploy: true
-# ---
-
-"""
-Discord Bot with ChatGPT Integration using Modal
-
-This module implements a Discord bot that integrates with OpenAI's ChatGPT to provide 
-question-answering capabilities through Discord slash commands. The bot is built using 
-Modal for deployment and FastAPI for handling Discord interactions.
-
-Key Features:
-- Slash command integration (/api) for asking questions to ChatGPT
-- Asynchronous request handling for better performance
-- Discord interaction authentication
-- OpenAI API integration with rate limiting and error handling
-- Comprehensive logging of interactions and token usage
-- User feedback collection and storage
-
-Requirements:
-- Modal deployment setup with appropriate secrets:
-  - discord-secret-2: Contains Discord bot credentials
-  - openai-secret: Contains OpenAI API key
-- Python packages: fastapi, pynacl, requests, openai
-
-Usage:
-1. Set up Discord application and bot in Discord Developer Portal
-2. Configure Modal secrets for Discord and OpenAI
-3. Deploy the application using Modal
-4. Set up Discord interactions endpoint URL
-5. Invite bot to your Discord server
-6. Use /api command in Discord to interact with ChatGPT
-
-For detailed setup instructions, see the documentation below.
-"""
-
-import json
-import sqlite3
+import os
+import sys
+import time
+import re
+import asyncio
 import datetime
-import time  # Import for tracking start and end times
-from enum import Enum
+from typing import Dict, Any
+from contextlib import asynccontextmanager
 
 import modal
-from vector_emb import answer_question, COMPLETION_MODEL, llm_answer_question
-from database import log_interaction, init_db, get_db_path, log_track_interaction
+from fastapi import FastAPI
 
-image = (modal.Image.debian_slim(python_version="3.11").pip_install(
-    "fastapi[standard]==0.115.9", "pynacl~=1.5.0", "requests~=2.32.3", "openai~=1.75.0",
-    "tiktoken~=0.9.0", "chromadb~=1.0.6"
-).add_local_dir("data", remote_path="/data", copy=True))
+# Add the src directory to Python path for Modal environment
+sys.path.append("/root/src")
 
-app = modal.App("example-discord-bot", image=image)
+# Import Discord and other heavy dependencies only inside Modal functions
+# from database import init_db, log_interaction, log_track_interaction
+# from vector_emb import answer_question, llm_answer_question, get_openai_client
 
-# Define persistent volume for logs - CORRECTED TYPO
-logs_db_storage = modal.Volume.from_name("discord-logs", create_if_missing=True)
+# Modal app setup
+app = modal.App("discord-chat-bot")
 
+# Define the Docker image with all dependencies
+image = modal.Image.debian_slim().pip_install(
+    "discord.py>=2.3.0",
+    "openai>=1.0.0",
+    "chromadb",
+    "tiktoken",
+    "python-dotenv",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0"
+).add_local_dir("src", "/root/src").add_local_dir("data", "/root/data")
 
-@app.function(secrets=[modal.Secret.from_name("openai-secret")])
-@modal.concurrent(max_inputs=1000)
-async def fetch_api(question: str) -> str:
-    """
-    Fetch a response from OpenAI's ChatGPT API for a given question.
-    
-    Args:
-        question (str): The question to send to ChatGPT
-        
-    Returns:
-        str: The response from ChatGPT, or an error message if the request fails
-        
-    Notes:
-        - Uses GPT-3.5-turbo model with temperature 0.7 for varied responses
-        - Limited to 500 tokens for concise answers
-        - Handles API errors gracefully with formatted error messages
-    """
-    from openai import AsyncOpenAI
-    client = AsyncOpenAI()
+# Define secrets
+secrets = [
+    modal.Secret.from_name("openai-secret"),
+    modal.Secret.from_name("discord-secret-2"),
+    modal.Secret.from_dict({"MODAL_LOGLEVEL": "DEBUG"})  # Add debug logging
+]
 
-    try:
-        # Get context for the question
-        context, sources, chunks = answer_question(question)
-        
-        # Ensure context is a string to avoid NoneType errors
-        if context is None:
-            context = "No specific context found."
-                
-                
-        message, context_info = llm_answer_question(client, context, sources, chunks, question)
+# Define Modal volumes for persistence
+discord_bot_volume = modal.Volume.from_name("discord-bot-volume", create_if_missing=True)
+chroma_volume = modal.Volume.from_name("chroma-db-volume", create_if_missing=True)
 
-        return message, context_info
+volume_mounts = {
+    "/data/db": discord_bot_volume,
+    "/root/chroma_db": chroma_volume
+}
 
-    except Exception as e:
-        error_message = f"Sorry, an error occurred: {str(e)}"
-        return error_message
-
-@app.local_entrypoint()
-def test_fetch_api():
-    result = fetch_api.remote("What is Modal?")  # Added test question
-    if result.startswith("# 🤖: Oops! "):
-        raise Exception(result)
-    else:
-        print(result)
-
-async def send_to_discord(payload: dict, app_id: str, interaction_token: str):
-    """
-    Send a response back to Discord using their webhook API.
-    
-    Args:
-        payload (dict): The message content to send to Discord
-        app_id (str): The Discord application ID
-        interaction_token (str): The interaction token for this specific response
-        
-    Notes:
-        - Uses Discord's v10 API
-        - Sends messages asynchronously using aiohttp
-        - Updates the original interaction message
-    """
-    import aiohttp
-
-    interaction_url = f"https://discord.com/api/v10/webhooks/{app_id}/{interaction_token}/messages/@original"
-
-    async with aiohttp.ClientSession() as session:
-        async with session.patch(interaction_url, json=payload) as resp:
-            print("🤖 Discord response: " + await resp.text())
-
+def bot_is_mentioned(content: str, client_user) -> bool:
+    """Checks if the bot is mentioned or addressed in the message content."""
+    # Use word boundaries (\b) to avoid matching parts of other words
+    return (
+        client_user.mention in content
+        or re.search(r"\bbot\b", content, re.IGNORECASE) is not None
+    )
 
 @app.function(
-    concurrency_limit=1,
-    allow_concurrent_inputs=1000,
-    secrets=[modal.Secret.from_name("openai-secret")],
-    volumes={"/data/db": logs_db_storage}
+    image=image, 
+    secrets=secrets,
+    volumes=volume_mounts,
+    timeout=300
 )
-async def reply(app_id: str, interaction_token: str, question: str):
-    """
-    Handle the full flow of receiving a Discord command and responding with ChatGPT's answer.
+def fetch_api(question: str) -> Dict[str, Any]:
+    """Get answer from OpenAI using context from vector database"""
+    # Import dependencies inside the function
+    from database import init_db, log_track_interaction
+    from vector_emb import answer_question, llm_answer_question, get_openai_client
     
-    Args:
-        app_id (str): Discord application ID
-        interaction_token (str): Token for this specific interaction
-        question (str): The user's question for ChatGPT
-        
-    Notes:
-        - Concurrency limited to 1 instance but allows 1000 concurrent requests
-        - Logs each step of the process for monitoring
-        - Handles errors gracefully and sends error messages back to Discord
-    """
-    print(f"🤖 Getting ChatGPT response for question: {question}")
-    message = "" # Initialize message to ensure it's defined in finally block
-    interaction_id = None
-    message_id = None
+    start_time = time.time()
+    
     try:
-        init_db() # Initialize DB within the function context
-        start_time = time.time()  # Track start time
-        message, context_info = await fetch_api.local(question)
-        end_time = time.time()  # Track end time
-        print(f"🤖 Got response from ChatGPT: {message[:100]}...")
+        # Initialize database
+        init_db()
         
-        # Create a payload with the message and feedback buttons
-        payload = {
-            "content": message,
-            "components": [
-                {
-                    "type": 1,  # Action Row
-                    "components": [
-                        {
-                            "type": 2,  # Button
-                            "style": 3,  # Success/Green
-                            "custom_id": "feedback_positive",
-                            "emoji": {"name": "👍"},
-                            "label": "Helpful"
-                        },
-                        {
-                            "type": 2,  # Button
-                            "style": 4,  # Danger/Red
-                            "custom_id": "feedback_negative",
-                            "emoji": {"name": "👎"},
-                            "label": "Not Helpful"
-                        }
-                    ]
-                }
-            ]
+        # Get context and answer
+        context, sources, chunks = answer_question(question)
+        client = get_openai_client()
+        response, context_info = llm_answer_question(client, context, sources, chunks, question)
+        
+        end_time = time.time()
+        
+        # Log the interaction
+        log_id = log_track_interaction(
+            question=question,
+            response=response,
+            context_info=context_info,
+            model="gpt-4o-mini",
+            start_time=start_time,
+            end_time=end_time,
+            success=True
+        )
+        
+        return {
+            "answer": response,
+            "log_id": log_id,
+            "context_info": context_info
         }
         
-        # Send the response to Discord
-        import aiohttp
-        interaction_url = f"https://discord.com/api/v10/webhooks/{app_id}/{interaction_token}/messages/@original"
-        async with aiohttp.ClientSession() as session:
-            async with session.patch(interaction_url, json=payload) as resp:
-                response_text = await resp.text()
-                print("🤖 Discord response: " + response_text)
-                
-                # Try to extract message_id from the response
-                try:
-                    response_data = json.loads(response_text)
-                    message_id = response_data.get("id")
-                    print(f"🤖 Message ID from Discord response: {message_id}")
-                except:
-                    print("🤖 Could not extract message ID from response")
-        
-        print("🤖 Successfully sent response with feedback buttons to Discord")
     except Exception as e:
-        error_message = f"Sorry, there was an error processing your request: {str(e)}"
-        print(f"🤖 Error in reply: {error_message}")
-        await send_to_discord({"content": error_message}, app_id, interaction_token)
-    finally:
-        # Log the interaction in the database
-        print("🤖 Logging interaction")
-        # Ensure the volume is reloaded if needed for the write operation
-        logs_db_storage.reload() 
+        end_time = time.time()
+        error_msg = f"Error generating response: {str(e)}"
         
-        # Log interaction to the regular interactions table for Discord data
-        regular_interaction_id = log_interaction(
-            user_id=interaction_token,
-            channel_id=app_id,
+        # Log failed interaction
+        log_track_interaction(
             question=question,
-            response=message,
-            thread_id=message_id
-        )
-        
-        # Log to the track_db logs table with detailed information
-        track_interaction_id = log_track_interaction(
-            question=question,
-            response=message,
-            context_info=context_info,
-            model=COMPLETION_MODEL,
+            response=error_msg,
+            context_info={"error": str(e)},
+            model="gpt-4o-mini", 
             start_time=start_time,
-            end_time=end_time
+            end_time=end_time,
+            success=False
         )
         
-        print(f"🤖 Regular interaction logged with ID {regular_interaction_id}")
-        print(f"🤖 Track interaction logged with ID {track_interaction_id}")
-        
-        # Persist changes made to the volume
-        logs_db_storage.commit() 
-        return regular_interaction_id
+        return {"answer": error_msg, "log_id": None, "context_info": {}}
 
+@app.function(image=image, timeout=10)
+def health_check():
+    """Simple health check function"""
+    return "alive"
+
+# Global to track if bot is running (in-memory state)
+bot_instance = None
 
 @app.function(
-    concurrency_limit=1,
-    allow_concurrent_inputs=1000,
-    volumes={"/data/db": logs_db_storage}
+    image=image,
+    secrets=secrets,
+    volumes=volume_mounts,
+    timeout=60*60,  # 1 hour timeout, will auto-restart
+    schedule=modal.Period(minutes=55),  # Restart every 55 minutes to stay within timeout
+    allow_concurrent_inputs=1
 )
-async def handle_feedback(app_id: str, interaction_token: str, feedback_value: str, message_id: str):
-    """
-    Process feedback from a button interaction and store it in the database.
+async def discord_bot_runner():
+    """Main function that runs the Discord bot with periodic restarts."""
+    import discord
+    from discord.ext import commands
+    import datetime
     
-    Args:
-        app_id (str): Discord application ID
-        interaction_token (str): Token for this specific interaction
-        feedback_value (str): The feedback value ("positive" or "negative")
-        message_id (str): The message ID that received feedback
-    """
-    from database import init_db, store_feedback
-    import traceback
+    global bot_instance
     
-    print(f"🤖 Processing feedback: {feedback_value} for message {message_id}")
+    print(f"🚀 Starting Discord bot runner at {datetime.datetime.now()}")
+    
+    # Bot status tracking
+    status = {"running": False, "last_restart": None, "last_error": None}
+    
+    def setup_discord_bot():
+        """Set up and configure the Discord bot."""
+        intents = discord.Intents.default()
+        intents.message_content = True
+        bot = commands.Bot(command_prefix="!", intents=intents)
+
+        @bot.event
+        async def on_ready():
+            print(f"Bot is ready! Logged in as {bot.user.name}")
+            print(f"Guilds connected: {len(bot.guilds)}")
+            status["running"] = True
+
+        @bot.event
+        async def on_message(message):
+            if message.author == bot.user:
+                return
+
+            if bot_is_mentioned(message.content, bot.user):
+                print(f"Question received: {message.content}")
+                thread = await message.create_thread(
+                    name=f"Question from {message.author.display_name}",
+                    auto_archive_duration=60,
+                )
+                await thread.send(f"Hey {message.author.mention}, let me think about that...")
+                try:
+                    result = fetch_api.remote(message.content)  # Remove await - Modal .remote() is synchronous
+                    answer = result["answer"]
+                    log_id = result["log_id"]
+                    await thread.send(f"**Answer:** {answer}")
+                    feedback_msg = await thread.send(
+                        "Was this answer helpful? Please reply with:\n"
+                        "👍 for helpful\n"
+                        "👎 for not helpful\n"
+                        "Or provide additional feedback!"
+                    )
+                    await feedback_msg.add_reaction("👍")
+                    await feedback_msg.add_reaction("👎")
+                except Exception as e:
+                    await thread.send(f"Sorry, I encountered an error: {str(e)}")
+                    print(f"Error processing question: {e}")
+
+            await bot.process_commands(message)
+
+        return bot
+    
     try:
-        init_db()
-        logs_db_storage.reload()
+        status["last_restart"] = datetime.datetime.now().isoformat()
         
-        # Connect to the database
-        conn = sqlite3.connect(get_db_path())
-        cursor = conn.cursor()
-        
-        print(f"🤖 Using database at path: {get_db_path()}")
-        
-        # Dump the entire interactions table to debug (limit to 10 rows)
-        cursor.execute('SELECT id, user_id, channel_id, thread_id FROM interactions ORDER BY id DESC LIMIT 10')
-        all_interactions = cursor.fetchall()
-        print(f"🤖 All recent interactions: {all_interactions}")
-        
-        # Try these different search strategies in order:
-        # 1. Look for message_id in thread_id field
-        cursor.execute('SELECT id FROM interactions WHERE thread_id = ?', (message_id,))
-        result = cursor.fetchone()
-        
-        if result:
-            interaction_id = result[0]
-            print(f"🤖 Found interaction by thread_id: {interaction_id}")
-        else:
-            # 2. Look for interaction_token in user_id field
-            cursor.execute('SELECT id FROM interactions WHERE user_id = ?', (interaction_token,))
-            result = cursor.fetchone()
-            
-            if result:
-                interaction_id = result[0]
-                print(f"🤖 Found interaction by user_id (token): {interaction_id}")
-            else:
-                # 3. Look for original message_id in user_id field (some implementations store it there)
-                cursor.execute('SELECT id FROM interactions WHERE user_id = ?', (message_id,))
-                result = cursor.fetchone()
-                
-                if result:
-                    interaction_id = result[0]
-                    print(f"🤖 Found interaction by user_id (message): {interaction_id}")
-                else:
-                    # 4. Fallback to most recent interaction
-                    cursor.execute('SELECT id FROM interactions ORDER BY id DESC LIMIT 1')
-                    result = cursor.fetchone()
-                    
-                    if result:
-                        interaction_id = result[0]
-                        print(f"🤖 Using most recent interaction as fallback: {interaction_id}")
-                    else:
-                        # 5. If no interactions at all, create a new one
-                        print("🤖 No interactions found, creating a new one for the feedback")
-                        timestamp = datetime.datetime.now().isoformat()
-                        cursor.execute('''
-                            INSERT INTO interactions 
-                            (timestamp, user_id, channel_id, question, response, feedback, thread_id)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ''', (timestamp, str(interaction_token), str(app_id), 
-                              "Feedback only", "No response - feedback only", 
-                              None, str(message_id)))
-                        conn.commit()
-                        interaction_id = cursor.lastrowid
-        
-        feedback_text = "👍 Helpful" if feedback_value == "positive" else "👎 Not Helpful"
-        
-        # Store the feedback both in the database and in temporary storage
-        print(f"🤖 Storing feedback '{feedback_text}' for interaction {interaction_id}")
-        conn.close()  # Close the connection before calling store_feedback
-        
-        try:
-            # Store feedback using the dedicated function
-            store_feedback(interaction_id, feedback_text)
-            print(f"🤖 Feedback stored successfully using store_feedback()")
-        except Exception as store_error:
-            # If store_feedback fails, try direct SQL
-            print(f"🤖 Error using store_feedback: {store_error}")
-            print(f"🤖 Trying direct SQL update")
-            
-            direct_conn = sqlite3.connect(get_db_path())
-            direct_cursor = direct_conn.cursor()
-            direct_cursor.execute(
-                'UPDATE interactions SET feedback = ? WHERE id = ?', 
-                (feedback_text, interaction_id)
+        # Get Discord token with better error handling
+        discord_token = os.environ.get("DISCORD_BOT_TOKEN")
+        if not discord_token:
+            raise ValueError(
+                "DISCORD_BOT_TOKEN environment variable not set. "
+                "Please ensure the discord-secret-2 secret is properly configured in Modal."
             )
-            direct_conn.commit()
-            rows_affected = direct_cursor.rowcount
-            print(f"🤖 Direct SQL update affected {rows_affected} rows")
-            direct_conn.close()
         
-        logs_db_storage.commit()
+        print(f"Discord token found (length: {len(discord_token)})")
         
-        # Verify that feedback was actually stored
-        verify_conn = sqlite3.connect(get_db_path())
-        verify_cursor = verify_conn.cursor()
-        verify_cursor.execute('SELECT feedback FROM interactions WHERE id = ?', (interaction_id,))
-        stored_feedback = verify_cursor.fetchone()
-        verify_conn.close()
-        print(f"🤖 Verification - stored feedback for interaction {interaction_id}: {stored_feedback}")
+        client = setup_discord_bot()
+        bot_instance = client
         
-        # Send acknowledgement response to Discord
-        acknowledge_message = "Thank you for your feedback!" + (" We're glad the response was helpful." if feedback_value == "positive" else " We'll work on improving our answers.")
+        print("Starting Discord bot on Modal infrastructure...")
+        print(f"Bot will run until {datetime.datetime.now() + datetime.timedelta(minutes=55)}")
         
-        await send_to_discord(
-            {"type": DiscordResponseType.CHANNEL_MESSAGE_WITH_SOURCE.value, "content": acknowledge_message},
-            app_id,
-            interaction_token
-        )
-        
+        # Run the bot (this blocks until disconnected or timeout)
+        await client.start(discord_token)
+
     except Exception as e:
-        error_message = f"Error processing feedback: {str(e)}\n{traceback.format_exc()}"
-        print(f"🤖 {error_message}")
-        await send_to_discord(
-            {"type": DiscordResponseType.CHANNEL_MESSAGE_WITH_SOURCE.value, "content": "Sorry, there was an error processing your feedback."},
-            app_id,
-            interaction_token
-        )
+        print(f"Bot encountered an error: {type(e).__name__}: {e}")
+        status["running"] = False
+        status["last_error"] = str(e)
+        if bot_instance and not bot_instance.is_closed():
+            await bot_instance.close()
+    finally:
+        print("Bot runner completed. Will restart via schedule.")
 
 
-# ## Set up a Discord app
-
-# Now, we need to actually connect to Discord.
-# We start by creating an application on the Discord Developer Portal.
-
-# 1. Go to the
-#    [Discord Developer Portal](https://discord.com/developers/applications) and
-#    log in with your Discord account.
-# 2. On the portal, go to **Applications** and create a new application by
-#    clicking **New Application** in the top right next to your profile picture.
-# 3. [Create a custom Modal Secret](https://modal.com/docs/guide/secrets) for your Discord bot.
-#    On Modal's Secret creation page, select 'Discord'. Copy your Discord application’s
-#    **Public Key** and **Application ID** (from the **General Information** tab in the Discord Developer Portal)
-#    and paste them as the value of `DISCORD_PUBLIC_KEY` and `DISCORD_CLIENT_ID`.
-#    Additionally, head to the **Bot** tab and use the **Reset Token** button to create a new bot token.
-#    Paste this in the value of an additional key in the Secret, `DISCORD_BOT_TOKEN`.
-#    Name this Secret `discord-secret`.
-
-# We access that Secret in code like so:
-
-discord_secret = modal.Secret.from_name(
-    "discord-secret-2",
-    required_keys=[  # included so we get nice error messages if we forgot a key
-        "DISCORD_BOT_TOKEN",
-        "DISCORD_CLIENT_ID",
-        "DISCORD_PUBLIC_KEY",
-    ],
+# Keep the old Bot class for backwards compatibility but mark it as deprecated
+@app.cls(
+    image=image,
+    secrets=secrets,
+    volumes=volume_mounts,
+    scaledown_window=300,
+    timeout=0,
 )
-@app.function(secrets=[discord_secret], image=image)
-def create_slash_command(force: bool = False):
-    """
-    Register the /api slash command with Discord.
-    
-    Args:
-        force (bool): If True, recreate the command even if it already exists
-        
-    Notes:
-        - Creates a single 'api' command with a required 'question' parameter
-        - Checks for existing commands to avoid duplicates
-        - Requires Discord bot token and client ID from secrets
-    """
-    import os
+class Bot:
+    """DEPRECATED: Use discord_bot_runner function instead"""
+    @modal.enter()
+    async def start(self):
+        print("⚠️ WARNING: Bot class is deprecated. Use discord_bot_runner function instead.")
+        pass
 
-    import requests
+    @modal.exit()
+    async def stop(self):
+        pass
 
-    BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-    CLIENT_ID = os.getenv("DISCORD_CLIENT_ID")
+    @modal.web_endpoint(method="GET")
+    def health(self):
+        return {"status": "deprecated", "message": "Use discord_bot_runner function"}
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bot {BOT_TOKEN}",
+    @modal.web_endpoint(method="GET") 
+    def status(self):
+        return {"status": "deprecated", "message": "Use discord_bot_runner function"}
+
+
+# Add new monitoring endpoints
+@app.function(image=image)
+@modal.web_endpoint(method="GET")
+def bot_health():
+    """Health check endpoint for the Discord bot"""
+    return {
+        "status": "healthy",
+        "service": "discord-chat-bot",
+        "timestamp": datetime.datetime.now().isoformat()
     }
-    url = f"https://discord.com/api/v10/applications/{CLIENT_ID}/commands"
 
-    command_description = {
-        "name": "api",
-        "description": "Ask ChatGPT a question",
-        "options": [
-            {
-                "name": "question",
-                "description": "The question you want to ask",
-                "type": 3,  # STRING type
-                "required": True
-            }
+
+@app.function(image=image)
+@modal.web_endpoint(method="GET")
+def bot_info():
+    """Information endpoint about the bot deployment"""
+    return {
+        "bot_name": "Discord Chat Bot",
+        "deployment": "Modal",
+        "version": "2.0",
+        "features": [
+            "RAG-based Q&A",
+            "Thread creation for conversations",
+            "Feedback collection",
+            "Auto-restart on errors"
         ]
     }
 
-    # first, check if the command already exists
-    response = requests.get(url, headers=headers)
-    try:
-        response.raise_for_status()
-    except Exception as e:
-        raise Exception("Failed to create slash command") from e
 
-    commands = response.json()
-    command_exists = any(
-        command.get("name") == command_description["name"] for command in commands
-    )
-
-    # and only recreate it if the force flag is set
-    if command_exists and not force:
-        print(f"🤖: command {command_description['name']} exists")
-        return
-
-    response = requests.post(url, headers=headers, json=command_description)
-    try:
-        response.raise_for_status()
-    except Exception as e:
-        raise Exception("Failed to create slash command") from e
-    print(f"🤖: command {command_description['name']} created")
+@app.local_entrypoint()
+def main():
+    """Entry point for running the Discord bot."""
+    print("Deploying Discord bot to Modal...")
+    # When deployed, the run_bot function will be called automatically
+    # For local testing, you can call it directly
+    if os.environ.get("MODAL_ENVIRONMENT"):
+        print("Running in Modal environment")
+    else:
+        print("To deploy: modal deploy src/modal_discord_bot.py")
+        print("The bot will start automatically after deployment")
 
 
-@app.function(secrets=[discord_secret], min_containers=1)
-@modal.concurrent(max_inputs=1000)
-@modal.asgi_app()
-def web_app():
-    from fastapi import FastAPI, HTTPException, Request
-    from fastapi.middleware.cors import CORSMiddleware
+if __name__ == "__main__":
+    print("This script should be run via Modal commands:")
+    print("modal deploy src/modal_discord_bot.py")
+    print("To run locally for testing: modal run src/modal_discord_bot.py")
 
-    web_app = FastAPI()
-
-    # must allow requests from other domains, e.g. from Discord's servers
-    web_app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    @web_app.post("/api")
-    async def get_api(request: Request):
-        body = await request.body()
-
-        # confirm this is a request from Discord
-        authenticate(request.headers, body)
-
-        print("🤖: parsing request")
-        data = json.loads(body.decode())
-        if data.get("type") == DiscordInteractionType.PING.value:
-            print("🤖: acking PING from Discord during auth check")
-            return {"type": DiscordResponseType.PONG.value}
-
-        if data.get("type") == DiscordInteractionType.APPLICATION_COMMAND.value:
-            print("🤖: handling slash command")
-            app_id = data["application_id"]
-            interaction_token = data["token"]
-            
-            # Extract the question from the command data
-            question = data["data"]["options"][0]["value"]
-
-            # kick off request asynchronously, will respond when ready
-            reply.spawn(app_id, interaction_token, question)
-
-            # respond immediately with defer message
-            return {
-                "type": DiscordResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE.value
-            }
-        
-        # Handle button click interactions (for feedback)
-        if data.get("type") == DiscordInteractionType.MESSAGE_COMPONENT.value:
-            print("🤖: handling button interaction")
-            app_id = data["application_id"]
-            interaction_token = data["token"]
-            custom_id = data["data"]["custom_id"]
-            message_id = data["message"]["id"]
-            
-            if custom_id.startswith("feedback_"):
-                feedback_value = custom_id.split("_")[1]  # Extract "positive" or "negative"
-                
-                # Handle feedback asynchronously
-                handle_feedback.spawn(app_id, interaction_token, feedback_value, message_id)
-                
-                # Acknowledge the button click immediately
-                return {
-                    "type": DiscordResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE.value
-                }
-
-        print(f"🤖: unable to parse request with type {data.get('type')}")
-        raise HTTPException(status_code=400, detail="Bad request")
-
-    return web_app
-
-
-def authenticate(headers, body):
-    """
-    Verify that the incoming request is legitimately from Discord.
+# Add a function to manually trigger the bot runner
+@app.function(
+    image=image,
+    secrets=secrets,
+    volumes=volume_mounts,
+    timeout=0,  # Run indefinitely
+)
+async def start_persistent_bot():
+    """Start the Discord bot and keep it running indefinitely."""
+    import discord
+    from discord.ext import commands
+    import datetime
     
-    Args:
-        headers: The request headers containing Discord's signature
-        body: The raw request body to verify
-        
-    Raises:
-        HTTPException: If the request signature is invalid
-        
-    Notes:
-        - Uses Discord's Ed25519 public key cryptography for verification
-        - Required for Discord's security requirements
-        - Handles both regular requests and Discord's security checks
-    """
-    import os
+    print(f"🚀 Starting persistent Discord bot at {datetime.datetime.now()}")
+    
+    def setup_discord_bot():
+        """Set up and configure the Discord bot."""
+        intents = discord.Intents.default()
+        intents.message_content = True
+        bot = commands.Bot(command_prefix="!", intents=intents)
 
-    from fastapi.exceptions import HTTPException
-    from nacl.exceptions import BadSignatureError
-    from nacl.signing import VerifyKey
+        @bot.event
+        async def on_ready():
+            print(f"Bot is ready! Logged in as {bot.user.name}")
+            print(f"Guilds connected: {len(bot.guilds)}")
 
-    print("🤖: authenticating request")
-    # verify the request is from Discord using their public key
-    public_key = os.getenv("DISCORD_PUBLIC_KEY")
-    verify_key = VerifyKey(bytes.fromhex(public_key))
+        @bot.event
+        async def on_message(message):
+            if message.author == bot.user:
+                return
 
-    signature = headers.get("X-Signature-Ed25519")
-    timestamp = headers.get("X-Signature-Timestamp")
+            if bot_is_mentioned(message.content, bot.user):
+                print(f"Question received: {message.content}")
+                thread = await message.create_thread(
+                    name=f"Question from {message.author.display_name}",
+                    auto_archive_duration=60,
+                )
+                await thread.send(f"Hey {message.author.mention}, let me think about that...")
+                try:
+                    result = fetch_api.remote(message.content)  # Modal .remote() is synchronous, no await needed
+                    answer = result["answer"]
+                    log_id = result["log_id"]
+                    await thread.send(f"**Answer:** {answer}")
+                    feedback_msg = await thread.send(
+                        "Was this answer helpful? Please reply with:\n"
+                        "👍 for helpful\n"
+                        "👎 for not helpful\n"
+                        "Or provide additional feedback!"
+                    )
+                    await feedback_msg.add_reaction("👍")
+                    await feedback_msg.add_reaction("👎")
+                except Exception as e:
+                    await thread.send(f"Sorry, I encountered an error: {str(e)}")
+                    print(f"Error processing question: {e}")
 
-    message = timestamp.encode() + body
+            await bot.process_commands(message)
 
-    try:
-        verify_key.verify(message, bytes.fromhex(signature))
-    except BadSignatureError:
-        # either an unauthorized request or Discord's "negative control" check
-        raise HTTPException(status_code=401, detail="Invalid request")
+        return bot
+    
+    # Main bot loop with automatic restarts
+    while True:
+        try:
+            # Get Discord token
+            discord_token = os.environ.get("DISCORD_BOT_TOKEN")
+            if not discord_token:
+                raise ValueError(
+                    "DISCORD_BOT_TOKEN environment variable not set. "
+                    "Please ensure the discord-secret-2 secret is properly configured in Modal."
+                )
+            
+            print(f"Discord token found (length: {len(discord_token)})")
+            
+            client = setup_discord_bot()
+            
+            print("Starting Discord bot connection...")
+            print(f"Bot starting at {datetime.datetime.now()}")
+            
+            # This will run until the connection is lost or an error occurs
+            await client.start(discord_token)
 
-class DiscordInteractionType(Enum):
-    """Enumeration of Discord interaction types we handle."""
-    PING = 1  # hello from Discord during auth check
-    APPLICATION_COMMAND = 2  # an actual command
-    MESSAGE_COMPONENT = 3  # button click or select menu interaction
-
-
-class DiscordResponseType(Enum):
-    """Enumeration of Discord response types we use."""
-    PONG = 1  # hello back during auth check
-    CHANNEL_MESSAGE_WITH_SOURCE = 4  # respond immediately with a message
-    DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE = 5  # we'll send a message later
-    UPDATE_MESSAGE = 7  # update an existing message
-
-
-# ## Deploy on Modal
-
-# You can deploy this app on Modal by running the following commands:
-
-# ``` shell
-# modal run discord_bot.py  # checks the API wrapper, little test
-# modal run discord_bot.py::create_slash_command  # creates the slash command, if missing
-# modal deploy discord_bot.py  # deploys the web app and the API wrapper
-# ```
-
-# Copy the Modal URL that is printed in the output and go back to the **General Information** section on the
-# [Discord Developer Portal](https://discord.com/developers/applications).
-# Paste the URL, making sure to append the path of your `POST` route (here, `/api`), in the
-# **Interactions Endpoint URL** field, then click **Save Changes**. If your
-# endpoint URL is incorrect or if authentication is incorrectly implemented,
-# Discord will refuse to save the URL. Once it saves, you can start
-# handling interactions!
-
-# ## Finish setting up Discord bot
-
-# To start using the Slash Command you just set up, you need to invite the bot to
-# a Discord server. To do so, go to your application's **Installation** section on the
-# [Discord Developer Portal](https://discord.com/developers/applications).
-# Copy the **Discored Provided Link** and visit it to invite the bot to your bot to the server.
-
-# Now you can open your Discord server and type `/api` in a channel to trigger the bot.
-# You can see a working version [in our test Discord server](https://discord.gg/PmG7P47EPQ).
+        except Exception as e:
+            print(f"Bot encountered an error: {type(e).__name__}: {e}")
+            print("Restarting in 30 seconds...")
+            await asyncio.sleep(30) 
