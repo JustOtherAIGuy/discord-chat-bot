@@ -127,9 +127,9 @@ bot_instance = None
     secrets=secrets,
     volumes=volume_mounts,
     timeout=60*60,  # 1 hour timeout, will auto-restart
-    schedule=modal.Period(minutes=55),  # Restart every 55 minutes to stay within timeout
-    allow_concurrent_inputs=1
+    schedule=modal.Period(minutes=55)  # Restart every 55 minutes to stay within timeout
 )
+@modal.concurrent(max_inputs=1)
 async def discord_bot_runner():
     """Main function that runs the Discord bot with periodic restarts."""
     import discord
@@ -238,18 +238,18 @@ class Bot:
     async def stop(self):
         pass
 
-    @modal.web_endpoint(method="GET")
+    @modal.fastapi_endpoint()
     def health(self):
         return {"status": "deprecated", "message": "Use discord_bot_runner function"}
 
-    @modal.web_endpoint(method="GET") 
+    @modal.fastapi_endpoint() 
     def status(self):
         return {"status": "deprecated", "message": "Use discord_bot_runner function"}
 
 
 # Add new monitoring endpoints
 @app.function(image=image)
-@modal.web_endpoint(method="GET")
+@modal.fastapi_endpoint()
 def bot_health():
     """Health check endpoint for the Discord bot"""
     return {
@@ -260,7 +260,7 @@ def bot_health():
 
 
 @app.function(image=image)
-@modal.web_endpoint(method="GET")
+@modal.fastapi_endpoint()
 def bot_info():
     """Information endpoint about the bot deployment"""
     return {
