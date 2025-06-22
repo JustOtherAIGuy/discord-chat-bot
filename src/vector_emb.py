@@ -20,12 +20,23 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_MAX_TOKENS = 12000
 DEFAULT_MAX_CHUNKS = 5
 COMPLETION_MODEL = "gpt-4o-mini"
-EMBEDDING_MAX_TOKENS = 8000
+EMBEDDING_MAX_TOKENS = 7000
 
 SYSTEM_PROMPT = """You are a helpful workshop assistant.
 Answer questions based only on the workshop transcript sections provided.
 If you don't know the answer or can't find it in the provided sections, say so.
 When referencing information, mention which workshop(s) the information comes from."""
+
+
+def get_openai_client():
+    """Initialize OpenAI client with API key"""
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not found in environment variables")
+    return OpenAI(api_key=api_key)
+
+############### workshop discovery, chunking and embedding ##########
 
 def discover_workshops(data_dir=DATA_DIR):
     """Discover all workshop VTT files in the data directory"""
@@ -49,40 +60,6 @@ def discover_workshops(data_dir=DATA_DIR):
     except Exception as e:
         print(f"Error discovering workshops: {e}")
         return {}
-
-def get_openai_client():
-    """Initialize OpenAI client with API key"""
-    load_dotenv()
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not found in environment variables")
-    return OpenAI(api_key=api_key)
-
-def generate_embedding(text: str) -> List[float]:
-    """Generate embedding for text with safe token splitting"""
-    client = get_openai_client()
-    
-    token_count = count_tokens(text)
-    
-    if token_count <= EMBEDDING_MAX_TOKENS:
-        response = client.embeddings.create(
-            input=text,
-            model=EMBEDDING_MODEL
-        )
-        return response.data[0].embedding
-    else:
-        split_texts = split_large_chunk(text, EMBEDDING_MAX_TOKENS)
-        
-        embeddings = []
-        for split_text in split_texts:
-            response = client.embeddings.create(
-                input=split_text,
-                model=EMBEDDING_MODEL
-            )
-            embeddings.append(response.data[0].embedding)
-        
-        avg_embedding = np.mean(embeddings, axis=0).tolist()
-        return avg_embedding
 
 def split_large_chunk(text: str, max_tokens: int = EMBEDDING_MAX_TOKENS) -> List[str]:
     """Split a large chunk into smaller pieces that fit within token limits"""
@@ -130,6 +107,34 @@ def split_large_chunk(text: str, max_tokens: int = EMBEDDING_MAX_TOKENS) -> List
     
     return chunks
 
+def generate_embedding(text: str) -> List[float]:
+    """Generate embedding for text with safe token splitting"""
+    client = get_openai_client()
+    
+    token_count = count_tokens(text)
+    
+    if token_count <= EMBEDDING_MAX_TOKENS:
+        response = client.embeddings.create(
+            input=text,
+            model=EMBEDDING_MODEL
+        )
+        return response.data[0].embedding
+    else:
+        split_texts = split_large_chunk(text, EMBEDDING_MAX_TOKENS)
+        
+        embeddings = []
+        for split_text in split_texts:
+            response = client.embeddings.create(
+                input=split_text,
+                model=EMBEDDING_MODEL
+            )
+            embeddings.append(response.data[0].embedding)
+        
+        avg_embedding = np.mean(embeddings, axis=0).tolist()
+        return avg_embedding
+
+########## ChromaDB ##########
+
 def get_chroma_client():
     """Initialize and return a ChromaDB client with persistence"""
     os.makedirs(CHROMA_DB_PATH, exist_ok=True)
@@ -146,39 +151,6 @@ def get_or_create_collection(client, collection_name=COLLECTION_NAME):
             metadata={"description": "Workshop transcript chunks"}
         )
     return collection
-
-def process_workshop(workshop_data: Dict[str, str], collection_name: str = COLLECTION_NAME) -> int:
-    """Process a single workshop"""
-    try:
-        workshop_id = workshop_data['id']
-        workshop_path = workshop_data['path']
-        
-        client = get_chroma_client()
-        collection = get_or_create_collection(client, collection_name)
-        
-        # Check if already processed
-        try:
-            existing_results = collection.query(
-                query_embeddings=[[0.0] * 1536],
-                n_results=1,
-                where={"workshop_id": workshop_id}
-            )
-            if existing_results and existing_results['ids'] and len(existing_results['ids'][0]) > 0:
-                return 0
-        except:
-            pass
-        
-        chunks = robust_chunk_workshop(workshop_path, workshop_id)
-        
-        if not chunks:
-            return 0
-        
-        num_added = add_chunks_to_collection(collection, chunks, workshop_id)
-        return num_added
-        
-    except Exception as e:
-        print(f"Error processing workshop {workshop_data.get('id', 'Unknown')}: {str(e)}")
-        return 0
 
 def add_chunks_to_collection(collection, chunks, workshop_id):
     """Add multiple chunks to the collection with workshop metadata"""
@@ -224,6 +196,39 @@ def add_chunks_to_collection(collection, chunks, workshop_id):
     else:
         return 0
 
+def process_workshop(workshop_data: Dict[str, str], collection_name: str = COLLECTION_NAME) -> int:
+    """Process a single workshop"""
+    try:
+        workshop_id = workshop_data['id']
+        workshop_path = workshop_data['path']
+        
+        client = get_chroma_client()
+        collection = get_or_create_collection(client, collection_name)
+        
+        # Check if already processed
+        try:
+            existing_results = collection.query(
+                query_embeddings=[[0.0] * 1536],
+                n_results=1,
+                where={"workshop_id": workshop_id}
+            )
+            if existing_results and existing_results['ids'] and len(existing_results['ids'][0]) > 0:
+                return 0
+        except:
+            pass
+        
+        chunks = robust_chunk_workshop(workshop_path, workshop_id)
+        
+        if not chunks:
+            return 0
+        
+        num_added = add_chunks_to_collection(collection, chunks, workshop_id)
+        return num_added
+        
+    except Exception as e:
+        print(f"Error processing workshop {workshop_data.get('id', 'Unknown')}: {str(e)}")
+        return 0
+
 def process_all_workshops(collection_name=COLLECTION_NAME):
     """Process all discovered workshops"""
     workshops = discover_workshops()
@@ -242,6 +247,8 @@ def process_all_workshops(collection_name=COLLECTION_NAME):
             continue
     
     return processed_workshops
+
+########## Retrieval ##########
 
 def query_collection(collection, query_text, n_results=DEFAULT_MAX_CHUNKS, workshop_filter=None):
     """Query the collection for relevant documents"""

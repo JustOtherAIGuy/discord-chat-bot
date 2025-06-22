@@ -15,7 +15,7 @@ def deploy_bot():
     print("📦 Deploying Discord bot to Modal...")
     try:
         result = subprocess.run([
-            "modal", "deploy", "src/modal_discord_bot.py"
+            "modal", "deploy", "src/minimal_discord_bot.py"  # Changed from modal_discord_bot.py
         ], check=True, capture_output=True, text=True)
         
         print("✅ Bot deployed successfully!")
@@ -38,7 +38,7 @@ def start_bot_persistent():
         # Start the persistent bot function
         print("Launching start_persistent_bot function...")
         subprocess.run([
-            "modal", "run", "src/modal_discord_bot.py::start_persistent_bot"
+            "modal", "run", "src/minimal_discord_bot.py::start_persistent_bot"  # Changed file name
         ])
         
     except subprocess.CalledProcessError as e:

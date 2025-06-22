@@ -47,7 +47,7 @@ def bot_is_mentioned(content: str, client_user) -> bool:
     image=image, 
     secrets=secrets,
     volumes=volume_mounts,
-    timeout=300
+    timeout=0
 )
 def fetch_api(question: str) -> Dict[str, Any]:
     """Get answer from OpenAI using context from vector database"""
@@ -101,10 +101,11 @@ def fetch_api(question: str) -> Dict[str, Any]:
     image=image,
     secrets=secrets,
     volumes=volume_mounts,
-    timeout=0,
+    timeout=0,  # This allows indefinite runtime
+    allow_concurrent_inputs=10  # Allow multiple concurrent requests
 )
-async def start_discord_bot():
-    """Start the Discord bot"""
+async def start_persistent_bot():
+    """Start the Discord bot persistently on Modal"""
     import discord
     from discord.ext import commands
     
@@ -168,11 +169,25 @@ async def start_discord_bot():
         raise ValueError("DISCORD_BOT_TOKEN not found")
     
     print("Starting Discord bot...")
-    await bot.start(discord_token)
+    try:
+        await bot.start(discord_token)
+    except Exception as e:
+        print(f"Bot crashed: {e}")
+        # Re-raise to trigger Modal's retry mechanism
+        raise
 
-@app.local_entrypoint()
-def main():
-    """Local entrypoint to start the Discord bot"""
-    print("Starting Discord Chat Bot on Modal...")
-    start_discord_bot.remote()
-    print("Discord bot is now running on Modal!") 
+@app.function(
+    image=image,
+    secrets=secrets,
+    timeout=60
+)
+def bot_health():
+    """Health check endpoint for the bot"""
+    return {"status": "healthy", "timestamp": time.time()}
+
+# @app.local_entrypoint()
+# def main():
+#     """Local entrypoint to start the Discord bot"""
+#     print("Starting Discord Chat Bot on Modal...")
+#     start_discord_bot.remote()
+#     print("Discord bot is now running on Modal!")
