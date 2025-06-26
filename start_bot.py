@@ -15,7 +15,7 @@ def deploy_bot():
     print("📦 Deploying Discord bot to Modal...")
     try:
         result = subprocess.run([
-            "modal", "deploy", "src/minimal_discord_bot.py"  # Changed from modal_discord_bot.py
+            "modal", "deploy", "src/modal_discord_bot.py"
         ], check=True, capture_output=True, text=True)
         
         print("✅ Bot deployed successfully!")
@@ -29,16 +29,16 @@ def deploy_bot():
         return False
 
 def start_bot_persistent():
-    """Start the persistent bot function"""
-    print("\n🤖 Starting persistent Discord bot...")
+    """Start the Discord bot function"""
+    print("\n🤖 Starting Discord bot...")
     print("The bot will run indefinitely with auto-restart on errors.")
     print("You can safely close this terminal - the bot will continue running on Modal.")
     
     try:
-        # Start the persistent bot function
-        print("Launching start_persistent_bot function...")
+        # Start the Discord bot function
+        print("Launching start_discord_bot function...")
         subprocess.run([
-            "modal", "run", "src/minimal_discord_bot.py::start_persistent_bot"  # Changed file name
+            "modal", "run", "src/modal_discord_bot.py::start_discord_bot"
         ])
         
     except subprocess.CalledProcessError as e:
@@ -66,7 +66,7 @@ def check_bot_status():
             print("📊 Monitor your bot:")
             print("   1. Modal dashboard: https://modal.com/apps")
             print("   2. View logs: modal app logs discord-chat-bot")
-            print("   3. Function logs: modal app logs -f start_persistent_bot")
+            print("   3. Function logs: modal app logs -f start_discord_bot")
         else:
             print("⚠️  Bot app not found in Modal")
             
@@ -85,8 +85,8 @@ def main():
     # Check status
     check_bot_status()
     
-    # Ask user if they want to start the persistent bot
-    print("\n🤖 Ready to start the persistent Discord bot.")
+    # Ask user if they want to start the Discord bot
+    print("\n🤖 Ready to start the Discord bot.")
     print("This will run indefinitely on Modal (even after you close this terminal).")
     
     response = input("Start the bot now? (y/n): ").lower().strip()
@@ -99,14 +99,14 @@ def main():
     else:
         print("\nBot deployment completed but not started.")
         print("To start later, run:")
-        print("  modal run src/modal_discord_bot.py::start_persistent_bot")
+        print("  modal run src/modal_discord_bot.py::start_discord_bot")
     
     print("\n🔧 Useful commands:")
     print("  Stop bot: modal app stop discord-chat-bot")
     print("  View logs: modal app logs discord-chat-bot")
-    print("  Health check: modal run src/modal_discord_bot.py::bot_health")
+    print("  View function logs: modal app logs -f start_discord_bot")
     
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())

@@ -42,7 +42,7 @@ def load_vtt_content(file_path):
     
     return " ".join(content_lines)
 
-def simple_chunk_transcript(file_path: str, workshop_id: str) -> List[Dict[str, Any]]:
+def chunk_transcript(file_path: str, workshop_id: str) -> List[Dict[str, Any]]:
     """Simple, reliable chunking strategy with sentence-based splitting"""
     text = load_vtt_content(file_path)
     if not text:
@@ -93,10 +93,6 @@ def create_chunk(text: str, position: int, workshop_id: str) -> Dict[str, Any]:
         "speaker": "Unknown",
         "workshop_id": workshop_id
     }
-
-def robust_chunk_workshop(file_path: str, workshop_id: str) -> List[Dict[str, Any]]:
-    """Main chunking function for compatibility with vector_emb.py"""
-    return simple_chunk_transcript(file_path, workshop_id)
 
 def chunk_workshop_transcript(transcript_path: str) -> List[Dict[str, Any]]:
     """Main chunking function - extracts workshop ID from path"""

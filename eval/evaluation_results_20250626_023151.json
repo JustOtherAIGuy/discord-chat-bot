@@ -1,0 +1,57 @@
+{
+  "summary": {
+    "total_questions": 10,
+    "total_evaluated": 9,
+    "passed": 8,
+    "failed": 1,
+    "pass_rate": 0.8888888888888888
+  },
+  "evaluations": {
+    "0": {
+      "evaluation": "pass",
+      "notes": "",
+      "timestamp": "2025-06-26T02:24:03.044111"
+    },
+    "1": {
+      "evaluation": "pass",
+      "notes": "",
+      "timestamp": "2025-06-26T02:24:14.199833"
+    },
+    "2": {
+      "evaluation": "pass",
+      "notes": "",
+      "timestamp": "2025-06-26T02:24:24.045646"
+    },
+    "3": {
+      "evaluation": "pass",
+      "notes": "",
+      "timestamp": "2025-06-26T02:24:28.815235"
+    },
+    "4": {
+      "evaluation": "fail",
+      "notes": "It did a good answer, although addressing that they were 8 workshops will be expected here",
+      "timestamp": "2025-06-26T02:25:56.829577"
+    },
+    "5": {
+      "evaluation": "pass",
+      "notes": "I like the answer, do not commit to any specific number but it tell you the way to find it",
+      "timestamp": "2025-06-26T02:29:09.674280"
+    },
+    "6": {
+      "evaluation": "pass",
+      "notes": "",
+      "timestamp": "2025-06-26T02:29:21.188169"
+    },
+    "7": {
+      "evaluation": "pass",
+      "notes": "",
+      "timestamp": "2025-06-26T02:29:48.982907"
+    },
+    "8": {
+      "evaluation": "pass",
+      "notes": "",
+      "timestamp": "2025-06-26T02:30:11.412108"
+    }
+  },
+  "export_timestamp": "2025-06-26T02:31:51.158840"
+}

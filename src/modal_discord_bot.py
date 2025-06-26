@@ -3,7 +3,6 @@ import sys
 import time
 import re
 from typing import Dict, Any
-import logfire
 import modal
 
 # Add the src directory to Python path for Modal environment
@@ -18,15 +17,13 @@ image = modal.Image.debian_slim().pip_install(
     "openai>=1.0.0",
     "chromadb",
     "tiktoken",
-    "python-dotenv",
-    "logfire"
+    "python-dotenv"
 ).add_local_dir("src", "/root/src").add_local_dir("data", "/root/data")
 
 # Define secrets
 secrets = [
     modal.Secret.from_name("openai-secret"),
-    modal.Secret.from_name("discord-secret-2"),
-    modal.Secret.from_name("logfire-secret")
+    modal.Secret.from_name("discord-secret-2")
 ]
 
 # Define Modal volumes for persistence
@@ -37,7 +34,6 @@ volume_mounts = {
     "/data/db": discord_bot_volume,
     "/root/chroma_db": chroma_volume
 }
-
 def bot_is_mentioned(content: str, client_user) -> bool:
     """Checks if the bot is mentioned or addressed in the message content."""
     return (
@@ -54,100 +50,51 @@ def bot_is_mentioned(content: str, client_user) -> bool:
 def fetch_api(question: str) -> Dict[str, Any]:
     """Get answer from OpenAI using context from vector database"""
     
-    # Configure Logfire
-    logfire.configure()
+    from database import init_db, log_track_interaction
+    from vector_emb import answer_question, llm_answer_question, get_openai_client
+
+    init_db()
+    start_time = time.time()
     
-    with logfire.span("fetch_api", question=question) as span:
-        from database import init_db, log_track_interaction
-        from vector_emb import answer_question, llm_answer_question, get_openai_client
+    try:
+        context, sources, chunks = answer_question(question)
         
-        start_time = time.time()
+        client = get_openai_client()
+        response, context_info = llm_answer_question(client, context, sources, chunks, question)
         
-        try:
-            with logfire.span("database_init"):
-                init_db()
-            
-            with logfire.span("answer_question") as answer_span:
-                context, sources, chunks = answer_question(question)
-                answer_span.set_attributes({
-                    "num_sources": len(sources),
-                    "num_chunks": len(chunks),
-                    "context_length": len(context),
-                    "question": question
-                })
-            
-            with logfire.span("llm_call") as llm_span:
-                client = get_openai_client()
-                response, context_info = llm_answer_question(client, context, sources, chunks, question)
-                llm_span.set_attributes({
-                    "model": "gpt-4o-mini",
-                    "completion_tokens": context_info.get("completion_tokens", 0),
-                    "context_tokens": context_info.get("context_tokens", 0),
-                    "workshops_used": context_info.get("workshops_used", []),
-                    "response": response
-                })
-            
-            end_time = time.time()
-            processing_time = end_time - start_time
-            
-            span.set_attributes({
-                "success": True,
-                "processing_time": processing_time,
-                "response_length": len(response)
-            })
-            
-            logfire.info(
-                "Question answered successfully",
-                question=question[:100],
-                processing_time=processing_time,
-                workshops_used=context_info.get("workshops_used", []),
-                num_chunks=len(chunks)
-            )
-            
-            log_id = log_track_interaction(
-                question=question,
-                response=response,
-                context_info=context_info,
-                model="gpt-4o-mini",
-                start_time=start_time,
-                end_time=end_time,
-                success=True
-            )
-            
-            return {
-                "answer": response,
-                "log_id": log_id,
-                "context_info": context_info
-            }
-            
-        except Exception as e:
-            end_time = time.time()
-            error_msg = f"Error generating response: {str(e)}"
-            
-            span.set_attributes({
-                "success": False,
-                "error": str(e),
-                "processing_time": end_time - start_time
-            })
-            
-            logfire.error(
-                "Error processing question",
-                question=question[:100],
-                error=str(e),
-                processing_time=end_time - start_time
-            )
-            
-            log_track_interaction(
-                question=question,
-                response=error_msg,
-                context_info={"error": str(e)},
-                model="gpt-4o-mini", 
-                start_time=start_time,
-                end_time=end_time,
-                success=False
-            )
-            
-            return {"answer": error_msg, "log_id": None, "context_info": {}}
+        end_time = time.time()
+        
+        log_id = log_track_interaction(
+            question=question,
+            response=response,
+            context_info=context_info,
+            model="gpt-4o-mini",
+            start_time=start_time,
+            end_time=end_time,
+            success=True
+        )
+        
+        return {
+            "answer": response,
+            "log_id": log_id,
+            "context_info": context_info
+        }
+        
+    except Exception as e:
+        end_time = time.time()
+        error_msg = f"Error generating response: {str(e)}"
+        
+        log_track_interaction(
+            question=question,
+            response=error_msg,
+            context_info={"error": str(e)},
+            model="gpt-4o-mini", 
+            start_time=start_time,
+            end_time=end_time,
+            success=False
+        )
+        
+        return {"answer": error_msg, "log_id": None, "context_info": {}}
 
 @app.function(
     image=image,

@@ -5,3 +5,4 @@ chromadb==0.5.23
 tiktoken==0.8.0
 pandas==2.2.3
 numpy==2.2.0
+gradio==4.44.0

@@ -5,7 +5,7 @@ from chromadb.utils import embedding_functions
 from openai import OpenAI
 import json
 import glob
-from process_transcript import chunk_workshop_transcript, count_tokens, robust_chunk_workshop
+from process_transcript import chunk_workshop_transcript, count_tokens
 from dotenv import load_dotenv
 from typing import List, Dict, Any
 import numpy as np
@@ -18,14 +18,22 @@ COLLECTION_NAME = "workshop_chunks_all"
 CHROMA_DB_PATH = "/root/chroma_db" if os.path.exists("/root/chroma_db") else "chroma_db"
 EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_MAX_TOKENS = 12000
-DEFAULT_MAX_CHUNKS = 5
+DEFAULT_MAX_CHUNKS = 10
 COMPLETION_MODEL = "gpt-4o-mini"
 EMBEDDING_MAX_TOKENS = 7000
 
-SYSTEM_PROMPT = """You are a helpful workshop assistant.
-Answer questions based only on the workshop transcript sections provided.
-If you don't know the answer or can't find it in the provided sections, say so.
-When referencing information, mention which workshop(s) the information comes from."""
+SYSTEM_PROMPT = """You are a helpful Teaching Assistant.
+
+Your task is to answer questions based on the workshop transcript sections provided.
+
+Be concise but thorough in your response. Think step by step and make useful responses to the user.
+Identify the underlying question and answer it directly trying to provide context and action items.
+Follow the AIDA model:
+
+But do not explicitly state the AIDA model in your response.
+
+The response should be short and concise, no more than 200 words.
+"""
 
 
 def get_openai_client():
@@ -315,6 +323,8 @@ def combine_chunks(chunks, max_tokens=DEFAULT_MAX_TOKENS):
         total_tokens += chunk_tokens
     
     return combined_text
+
+########## Answer Question ##########
 
 def get_context_for_question(question, collection_name=COLLECTION_NAME, max_chunks=DEFAULT_MAX_CHUNKS, workshop_filter=None):
     """Get relevant context from the vector database for a question"""
