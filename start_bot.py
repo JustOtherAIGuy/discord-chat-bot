@@ -15,7 +15,7 @@ def deploy_bot():
     print("📦 Deploying Discord bot to Modal...")
     try:
         result = subprocess.run([
-            "modal", "deploy", "src/modal_discord_bot.py"
+            "modal", "deploy", "src/minimal_discord_bot.py"
         ], check=True, capture_output=True, text=True)
         
         print("✅ Bot deployed successfully!")
@@ -36,9 +36,9 @@ def start_bot_persistent():
     
     try:
         # Start the Discord bot function
-        print("Launching start_discord_bot function...")
+        print("Launching start_persistent_bot function...")
         subprocess.run([
-            "modal", "run", "src/modal_discord_bot.py::start_discord_bot"
+            "modal", "run", "src/minimal_discord_bot.py::start_persistent_bot"
         ])
         
     except subprocess.CalledProcessError as e:
@@ -99,12 +99,12 @@ def main():
     else:
         print("\nBot deployment completed but not started.")
         print("To start later, run:")
-        print("  modal run src/modal_discord_bot.py::start_discord_bot")
+        print("  modal run src/minimal_discord_bot.py::start_persistent_bot")
     
     print("\n🔧 Useful commands:")
     print("  Stop bot: modal app stop discord-chat-bot")
     print("  View logs: modal app logs discord-chat-bot")
-    print("  View function logs: modal app logs -f start_discord_bot")
+    print("  View function logs: modal app logs -f start_persistent_bot")
     
     return 0
 

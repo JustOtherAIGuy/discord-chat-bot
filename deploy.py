@@ -78,7 +78,7 @@ def deploy_bot():
     
     # Deploy the main application
     if not run_command(
-        "modal deploy src/modal_discord_bot.py",
+        "modal deploy src/minimal_discord_bot.py",
         "Deploying bot to Modal"
     ):
         return False

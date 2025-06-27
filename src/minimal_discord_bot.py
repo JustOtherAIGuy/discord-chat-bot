@@ -101,9 +101,9 @@ def fetch_api(question: str) -> Dict[str, Any]:
     image=image,
     secrets=secrets,
     volumes=volume_mounts,
-    timeout=0,  # This allows indefinite runtime
-    allow_concurrent_inputs=10  # Allow multiple concurrent requests
+    timeout=300,  # This allows indefinite runtime
 )
+@modal.concurrent(max_inputs=10)
 async def start_persistent_bot():
     """Start the Discord bot persistently on Modal"""
     import discord

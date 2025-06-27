@@ -225,7 +225,7 @@ def process_workshop(workshop_data: Dict[str, str], collection_name: str = COLLE
         except:
             pass
         
-        chunks = robust_chunk_workshop(workshop_path, workshop_id)
+        chunks = chunk_transcript(workshop_path, workshop_id)
         
         if not chunks:
             return 0
