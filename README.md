@@ -1,6 +1,39 @@
 # Discord Chat Bot
 
-A minimal Discord bot using RAG (Retrieval-Augmented Generation) deployed on Modal to answer questions about workshop transcripts with **robust chunking strategy**.
+## Run locally
+
+Git clone the RAG branch
+
+```
+git clone https://github.com/sotoblanco/discord-chat-bot.git
+git checkout rag
+```
+
+Install dependencies
+
+```
+pip install -r requirements.txt
+```
+
+Make sure to set the environment variables in the .env file
+
+```
+export OPENAI_API_KEY=your_openai_api_key
+```
+
+```
+source .env
+```
+
+Run the chat logic
+
+```
+python interactive_qa.py
+```
+
+
+
+A Discord bot using RAG (Retrieval-Augmented Generation) deployed on Modal to answer questions about workshop transcripts with **robust chunking strategy**.
 
 ## ✨ Features
 
