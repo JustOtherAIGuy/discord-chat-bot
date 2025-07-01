@@ -2,11 +2,10 @@
 
 ## Run locally
 
-Git clone the RAG branch
+Git clone the repository
 
 ```
 git clone https://github.com/sotoblanco/discord-chat-bot.git
-git checkout rag
 ```
 
 Install dependencies
@@ -31,9 +30,36 @@ Run the chat logic
 python interactive_qa.py
 ```
 
+## Feedback Database
 
+### Viewing Locally
+To view the feedback database locally, you can use any SQLite viewer. The database file is located in the `data/` directory. You can open it using a command-line tool like `sqlite3` or a GUI tool like DB Browser for SQLite.
 
-A Discord bot using RAG (Retrieval-Augmented Generation) deployed on Modal to answer questions about workshop transcripts with **robust chunking strategy**.
+```bash
+# Using sqlite3
+sqlite3 data/feedback.db
+```
+
+### Viewing in Modal
+To view the feedback database in Modal, you can use the following command to run a diagnostic tool that outputs the database content:
+
+```bash
+modal run src.modal_discord::view_feedback_database
+```
+
+## System Overview
+
+The Discord Chat Bot is designed to provide intelligent responses to questions about workshop transcripts using a Retrieval-Augmented Generation (RAG) approach. It integrates with Discord to respond to mentions and create organized conversation threads. The system uses a robust chunking strategy to ensure balanced distribution of transcript chunks, which are stored in a ChromaDB vector database for fast semantic search. The bot leverages OpenAI's GPT-4o-mini for generating responses and is deployed on Modal for scalability and persistence.
+
+Key Features:
+- **Robust Chunking**: Ensures balanced chunk distribution with multiple fallback strategies.
+- **Discord Integration**: Responds to mentions and organizes conversations in threads.
+- **ChromaDB Vector Search**: Provides fast semantic search across transcripts.
+- **OpenAI Integration**: Uses GPT-4o-mini for intelligent responses.
+- **Persistent Storage**: Data persists across deployments using Modal Volumes.
+- **Auto-restart**: Bot automatically restarts every 55 minutes to prevent timeouts.
+
+The system also includes diagnostic tools to analyze and fix chunking issues, and a logging mechanism to track interactions and performance metrics.
 
 ## ✨ Features
 
@@ -50,7 +76,7 @@ A Discord bot using RAG (Retrieval-Augmented Generation) deployed on Modal to an
 
 ```
 📁 src/
-├── 🎯 modal_discord_bot.py    # Main bot deployment & diagnostic functions
+├── 🎯 modal_discord.py    # Main bot deployment & diagnostic functions
 ├── 🔧 process_transcript.py   # Robust chunking with multiple fallback strategies  
 ├── 💾 vector_emb.py          # Vector embeddings & retrieval with cleanup functions
 ├── 🗄️ database.py           # Interaction logging
@@ -75,19 +101,19 @@ export DISCORD_BOT_TOKEN="your_discord_bot_token"
 ### 2. Deploy to Modal
 ```bash
 # Deploy the entire application
-modal deploy src/modal_discord_bot.py
+modal deploy src.modal_discord.py
 
 # Start the Discord bot
-modal run src.modal_discord_bot::discord_bot_runner
+modal run src.modal_discord::discord_bot_runner
 ```
 
 ### 3. Initialize Vector Database with Robust Chunking
 ```bash
 # Clean and rechunk all workshops (recommended first run)
-modal run src.modal_discord_bot::clean_and_rechunk_workshops
+modal run src.modal_discord::clean_and_rechunk_workshops
 
 # Or populate if database is empty
-modal run src.modal_discord_bot::populate_vector_database
+modal run src.modal_discord::populate_vector_database
 ```
 
 ## 🔧 Diagnostic & Maintenance Tools
@@ -95,49 +121,25 @@ modal run src.modal_discord_bot::populate_vector_database
 ### Diagnose Chunking Issues
 ```bash
 # Analyze VTT files and test chunking strategies
-modal run src.modal_discord_bot::diagnose_chunking_issues
+modal run src.modal_discord::diagnose_chunking_issues
 ```
 
 ### Analyze ChromaDB Content
 ```bash
 # Check what's stored in the vector database
-modal run src.modal_discord_bot::analyze_chromadb_content
+modal run src.modal_discord::analyze_chromadb_content
 ```
 
 ### Clean & Rechunk (Fixes Imbalanced Chunks)
 ```bash
 # Delete existing collection and rechunk with robust strategy
-modal run src.modal_discord_bot::clean_and_rechunk_workshops
+modal run src.modal_discord::clean_and_rechunk_workshops
 ```
 
 ### Check Database Status
 ```bash
 # Quick health check of vector database
-modal run src.modal_discord_bot::debug_vector_database
-```
-
-## 🎯 Robust Chunking Strategy
-
-The system uses a **4-tier fallback approach** to ensure every workshop gets properly chunked:
-
-1. **📄 Paragraph-based**: Splits on paragraph breaks (preferred)
-2. **📝 Sentence-based**: Splits on sentence boundaries (fallback #1)  
-3. **🔤 Word-based**: Splits on word boundaries (fallback #2)
-4. **🚑 Emergency**: Force splits into exact number of chunks (guaranteed)
-
-**Target**: 8-15 chunks per workshop, ~1000 tokens each
-
-**Solves**: The chunking imbalance issue where some workshops had 100+ chunks while others had only 1 chunk.
-
-## 📊 Expected Results After Cleanup
-
-```
-WS1: 8-15 chunks ✅  (was 113 chunks)
-WS2: 8-15 chunks ✅  (was 1 chunk) 
-WS3: 8-15 chunks ✅  (was 1 chunk)
-WS4: 8-15 chunks ✅  (was 1 chunk)
-WS5: 8-15 chunks ✅  (was 106 chunks)
-WS6: 8-15 chunks ✅  (was 65 chunks)
+modal run src.modal_discord::debug_vector_database
 ```
 
 ## 🤖 Discord Bot Usage
@@ -149,7 +151,7 @@ WS6: 8-15 chunks ✅  (was 65 chunks)
 
 ## 📝 File Descriptions
 
-### `modal_discord_bot.py`
+### `modal_discord.py`
 - **Discord bot runner** with auto-restart functionality
 - **Diagnostic functions** for chunking analysis
 - **API endpoints** for health checks and bot info
@@ -181,26 +183,26 @@ WS6: 8-15 chunks ✅  (was 65 chunks)
 ### Bot Not Responding
 ```bash
 # Check bot status
-modal run src.modal_discord_bot::debug_vector_database
+modal run src.modal_discord::debug_vector_database
 
 # Restart bot
 modal app stop discord-chat-bot
-modal deploy src/modal_discord_bot.py
+modal deploy src.modal_discord.py
 ```
 
 ### Chunking Issues
 ```bash
 # Diagnose the problem
-modal run src.modal_discord_bot::diagnose_chunking_issues
+modal run src.modal_discord::diagnose_chunking_issues
 
 # Fix with robust rechunking
-modal run src.modal_discord_bot::clean_and_rechunk_workshops
+modal run src.modal_discord::clean_and_rechunk_workshops
 ```
 
 ### Empty Database
 ```bash
 # Populate with robust chunking
-modal run src.modal_discord_bot::populate_vector_database
+modal run src.modal_discord::populate_vector_database
 ```
 
 ## 🎛️ Configuration
@@ -227,9 +229,9 @@ modal run src.modal_discord_bot::populate_vector_database
 
 For issues with chunking imbalance or bot functionality:
 
-1. **Run diagnostics**: `modal run src.modal_discord_bot::diagnose_chunking_issues`
-2. **Check database**: `modal run src.modal_discord_bot::analyze_chromadb_content`  
-3. **Clean & rechunk**: `modal run src.modal_discord_bot::clean_and_rechunk_workshops`
-4. **Verify fix**: `modal run src.modal_discord_bot::debug_vector_database`
+1. **Run diagnostics**: `modal run src.modal_discord::diagnose_chunking_issues`
+2. **Check database**: `modal run src.modal_discord::analyze_chromadb_content`  
+3. **Clean & rechunk**: `modal run src.modal_discord::clean_and_rechunk_workshops`
+4. **Verify fix**: `modal run src.modal_discord::debug_vector_database`
 
 The robust chunking system is designed to automatically handle edge cases and ensure consistent performance across all workshop transcripts.

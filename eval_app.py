@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 class EvalApp:
-    def __init__(self, data_file='eval/eval_retrieval_questions.json', progress_file='eval/eval_progress.json'):
+    def __init__(self, data_file='eval/questions.json', progress_file='eval/eval_progress.json'):
         self.data_file = data_file
         self.progress_file = progress_file
         self.data = self.load_data()
