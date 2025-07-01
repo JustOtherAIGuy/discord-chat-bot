@@ -2,216 +2,100 @@ import re
 import uuid
 import tiktoken
 from typing import List, Dict, Any
-import logging
+import os
 
-logger = logging.getLogger('process_transcript')
-
-COMPLETION_MODEL = "gpt-3.5-turbo-16k"
-TARGET_CHUNK_TOKEN_COUNT = 500
+# Configuration
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 100
+MIN_CHUNK_SIZE = 200
 
 def count_tokens(text: str) -> int:
     """Count tokens using tiktoken"""
     try:
-        encoding = tiktoken.encoding_for_model(COMPLETION_MODEL)
+        encoding = tiktoken.encoding_for_model("gpt-4")
         return len(encoding.encode(text))
     except:
         encoding = tiktoken.get_encoding("cl100k_base")
         return len(encoding.encode(text))
 
 def load_vtt_content(file_path):
-    """Reads a VTT file and extracts the text content, skipping metadata and timestamps."""
+    """Load VTT file and extract clean text content"""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-    except FileNotFoundError:
-        print(f"Error: Transcript file not found at {file_path}")
-        return None
+            content = f.read()
     except Exception as e:
-        print(f"Error reading transcript file: {e}")
-        return None
-
+        print(f"Error reading file {file_path}: {e}")
+        return ""
+    
+    lines = content.split('\n')
     content_lines = []
-    is_content = False
+    
     for line in lines:
         line = line.strip()
-        # Skip empty lines, WEBVTT header, and timestamp lines
-        if not line or line == 'WEBVTT' or '-->' in line:
-            is_content = False
+        if (not line or 
+            line == 'WEBVTT' or 
+            '-->' in line or 
+            re.match(r'^\d+:\d+:\d+', line) or
+            re.match(r'^[A-Z]+(\s*:.*)?$', line)):
             continue
-        # Skip lines that look like metadata (e.g., NOTE, STYLE)
-        if re.match(r'^[A-Z]+(\s*:.*)?$', line):
-             is_content = False
-             continue
-        # If it's not metadata or timestamp, assume it's content
-        # A simple heuristic: content often follows a timestamp line
-        # A better check might be needed for complex VTTs
-        # We will just append any line that doesn't match the skip conditions
         content_lines.append(line)
-        
+    
     return " ".join(content_lines)
 
-
-def split_into_paragraphs(text: str) -> List[str]:
-    """Split text into paragraphs based on multiple newlines or speaker changes"""
-    # First, split on double newlines
-    paragraphs = re.split(r'\n\s*\n', text)
+def chunk_transcript(file_path: str, workshop_id: str) -> List[Dict[str, Any]]:
+    """Simple, reliable chunking strategy with sentence-based splitting"""
+    text = load_vtt_content(file_path)
+    if not text:
+        return []
     
-    # Further split paragraphs if they contain different speakers
-    result = []
-    for paragraph in paragraphs:
-        # Check if paragraph has potential speaker markers (name followed by colon)
-        speaker_changes = re.split(r'([A-Za-z\s-]+:)', paragraph)
-        
-        if len(speaker_changes) > 1:
-            # Reassemble the speaker with their text
-            current_text = ""
-            speaker = ""
-            
-            for i, part in enumerate(speaker_changes):
-                if i % 2 == 1:  # This is a speaker marker
-                    if current_text:
-                        result.append(current_text.strip())
-                    speaker = part
-                    current_text = speaker
-                else:  # This is the text
-                    current_text += part
-            
-            if current_text:
-                result.append(current_text.strip())
-        else:
-            # No speaker changes, keep paragraph as is
-            if paragraph.strip():
-                result.append(paragraph.strip())
-    
-    return result
-
-def extract_vtt_timestamps(transcript_path: str) -> List[Dict[str, Any]]:
-    """Extract timestamps and speakers from VTT file"""
-    segments = []
-    
-    try:
-        with open(transcript_path, 'r', encoding='utf-8') as file:
-            content = file.read()
-            
-        # Extract timestamps and text with regex
-        # Format: 00:00:00.290 --> 00:00:01.350
-        # hugo bowne-anderson: Everyone.
-        pattern = r'(\d+:\d+:\d+\.\d+) --> (\d+:\d+:\d+\.\d+)\n(.*?)(?=\n\d+:\d+:\d+\.\d+|$)'
-        matches = re.findall(pattern, content, re.DOTALL)
-        
-        for i, match in enumerate(matches):
-            start_time, end_time, text = match
-            
-            # Extract speaker if available
-            speaker = "Unknown"
-            speaker_match = re.match(r'^([A-Za-z\s-]+):', text.strip())
-            if speaker_match:
-                speaker = speaker_match.group(1).strip()
-            
-            segments.append({
-                'start_time': start_time,
-                'end_time': end_time,
-                'timestamp': start_time,  # Use start time as the primary timestamp
-                'text': text.strip(),
-                'speaker': speaker
-            })
-        
-        print(f"Extracted {len(segments)} segments from VTT file")
-        if segments:
-            print(f"Sample segment: {segments[0]}")
-            
-    except Exception as e:
-        print(f"Error extracting timestamps: {str(e)}")
-        
-    return segments
-
-def create_chunks(text: str, target_token_count: int = TARGET_CHUNK_TOKEN_COUNT) -> List[Dict[str, Any]]:
-    """Split text into chunks with metadata"""
-    # Split text into paragraphs first
-    paragraphs = split_into_paragraphs(text)
+    sentences = [s.strip() for s in re.split(r'[.!?]+\s+', text) if s.strip()]
+    if not sentences:
+        return []
     
     chunks = []
-    current_chunk_text = ""
-    current_chunk_tokens = 0
-    chunk_index = 0
+    current_chunk_sentences = []
+    current_tokens = 0
+    position = 0
     
-    for paragraph in paragraphs:
-        # Count tokens in this paragraph
-        paragraph_tokens = count_tokens(paragraph)
+    for sentence in sentences:
+        sentence_tokens = count_tokens(sentence)
         
-        # If adding this paragraph would exceed our target, create a new chunk
-        if current_chunk_tokens + paragraph_tokens > target_token_count and current_chunk_text:
-            # Create a chunk with the text accumulated so far
-            chunk = {
-                "chunk_id": str(uuid.uuid4()),
-                "text": current_chunk_text,
-                "position": chunk_index,
-                "token_count": current_chunk_tokens,
-                "source": "workshop_transcript"
-            }
+        if current_tokens + sentence_tokens > CHUNK_SIZE and current_chunk_sentences:
+            chunk_text = ". ".join(current_chunk_sentences) + "."
+            chunk = create_chunk(chunk_text, position, workshop_id)
             chunks.append(chunk)
             
-            # Reset for new chunk
-            current_chunk_text = paragraph
-            current_chunk_tokens = paragraph_tokens
-            chunk_index += 1
+            overlap_sentences = current_chunk_sentences[-2:] if len(current_chunk_sentences) >= 2 else current_chunk_sentences
+            current_chunk_sentences = overlap_sentences + [sentence]
+            current_tokens = count_tokens(". ".join(current_chunk_sentences))
+            position += 1
         else:
-            # Add this paragraph to the current chunk
-            if current_chunk_text:
-                current_chunk_text += "\n\n" + paragraph
-            else:
-                current_chunk_text = paragraph
-            current_chunk_tokens += paragraph_tokens
+            current_chunk_sentences.append(sentence)
+            current_tokens += sentence_tokens
     
-    # Don't forget the last chunk if there's text left
-    if current_chunk_text:
-        chunk = {
-            "chunk_id": str(uuid.uuid4()),
-            "text": current_chunk_text,
-            "position": chunk_index,
-            "token_count": current_chunk_tokens,
-            "source": "workshop_transcript"
-        }
+    if current_chunk_sentences:
+        chunk_text = ". ".join(current_chunk_sentences) + "."
+        chunk = create_chunk(chunk_text, position, workshop_id)
         chunks.append(chunk)
     
-    return chunks
+    valid_chunks = [chunk for chunk in chunks if chunk['token_count'] >= MIN_CHUNK_SIZE]
+    return valid_chunks
+
+def create_chunk(text: str, position: int, workshop_id: str) -> Dict[str, Any]:
+    """Create a chunk dictionary with metadata"""
+    return {
+        "chunk_id": str(uuid.uuid4()),
+        "text": text.strip(),
+        "position": position,
+        "token_count": count_tokens(text),
+        "source": "sentence_chunking",
+        "timestamp": f"Chunk {position + 1}",
+        "speaker": "Unknown",
+        "workshop_id": workshop_id
+    }
 
 def chunk_workshop_transcript(transcript_path: str) -> List[Dict[str, Any]]:
-    """Process a workshop transcript file and return chunks"""
-    # Parse the VTT file to get accurate timestamps
-    vtt_segments = extract_vtt_timestamps(transcript_path)
-    
-    # Load and clean the transcript for chunking
-    transcript_text = load_vtt_content(transcript_path)
-    
-    # Create chunks from the transcript
-    chunks = create_chunks(transcript_text)
-    
-    # Add timestamps to each chunk based on position
-    for chunk in chunks:
-        chunk_index = chunk['position']
-        
-        # Assign timestamps to chunks based on position
-        if vtt_segments:
-            # Distribute timestamps from segments across chunks
-            segment_index = min(int(chunk_index * len(vtt_segments) / len(chunks)), len(vtt_segments) - 1)
-            segment = vtt_segments[segment_index]
-            
-            # Add timestamp information
-            timestamp = segment['timestamp']
-            chunk['timestamp'] = timestamp
-            
-            # Include timestamp directly in the text
-            # Format: [TIMESTAMP: 00:00:00]
-            timestamp_marker = f"[TIMESTAMP: {timestamp}]\n"
-            chunk['text'] = timestamp_marker + chunk['text']
-            
-            # Log timestamp assignment
-            if chunk_index < 3:  # Just log a few for debugging
-                print(f"Chunk {chunk_index} assigned timestamp: {timestamp}")
-                
-            # Extract speaker from segment
-            if 'speaker' in segment:
-                chunk['speaker'] = segment['speaker']
-    
-    return chunks
+    """Main chunking function - extracts workshop ID from path"""
+    filename = os.path.basename(transcript_path)
+    workshop_id = filename.split('-')[0] if '-' in filename else filename.split('.')[0]
+    return simple_chunk_transcript(transcript_path, workshop_id)

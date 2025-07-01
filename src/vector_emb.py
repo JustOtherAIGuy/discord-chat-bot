@@ -4,157 +4,303 @@ import chromadb
 from chromadb.utils import embedding_functions
 from openai import OpenAI
 import json
+import glob
 from process_transcript import chunk_workshop_transcript, count_tokens
 from dotenv import load_dotenv
 from typing import List, Dict, Any
+import numpy as np
+import re
+import uuid
 
-transcript_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "WS1-C2.vtt")
-COLLECTION_NAME = "workshop_chunks"
-CHROMA_DB_PATH = "chroma_db"
+# Support both local and Modal paths
+DATA_DIR = "/root/data" if os.path.exists("/root/data") else os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+COLLECTION_NAME = "workshop_chunks_all"
+CHROMA_DB_PATH = "/root/chroma_db" if os.path.exists("/root/chroma_db") else "chroma_db"
 EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_MAX_TOKENS = 12000
-DEFAULT_MAX_CHUNKS = 5
+DEFAULT_MAX_CHUNKS = 10
 COMPLETION_MODEL = "gpt-4o-mini"
+EMBEDDING_MAX_TOKENS = 7000
 
-SYSTEM_PROMPT = """You are a helpful workshop assistant.
-Answer questions based only on the workshop transcript sections provided.
-If you don't know the answer or can't find it in the provided sections, say so."""
-# === VECTOR STORAGE FUNCTIONS ===
+SYSTEM_PROMPT = """You are a helpful Teaching Assistant.
+
+Your task is to answer questions based on the workshop transcript sections provided.
+
+Be concise but thorough in your response. Think step by step and make useful responses to the user.
+Identify the underlying question and answer it directly trying to provide context and action items.
+Follow the AIDA model:
+
+But do not explicitly state the AIDA model in your response.
+
+The response should be short and concise, no more than 200 words.
+"""
+
 
 def get_openai_client():
-    """Initialize and return an OpenAI client with API key from environment"""
+    """Initialize OpenAI client with API key"""
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY not found in environment variables")
-    
     return OpenAI(api_key=api_key)
 
+############### workshop discovery, chunking and embedding ##########
+
+def discover_workshops(data_dir=DATA_DIR):
+    """Discover all workshop VTT files in the data directory"""
+    try:
+        pattern = os.path.join(data_dir, "*.vtt")
+        vtt_files = glob.glob(pattern)
+        
+        workshops = {}
+        for vtt_file in vtt_files:
+            filename = os.path.basename(vtt_file)
+            workshop_id = filename.split('-')[0] if '-' in filename else filename.split('.')[0]
+            
+            workshops[workshop_id] = {
+                'id': workshop_id,
+                'filename': filename,
+                'path': vtt_file
+            }
+        
+        return workshops
+        
+    except Exception as e:
+        print(f"Error discovering workshops: {e}")
+        return {}
+
+def split_large_chunk(text: str, max_tokens: int = EMBEDDING_MAX_TOKENS) -> List[str]:
+    """Split a large chunk into smaller pieces that fit within token limits"""
+    if count_tokens(text) <= max_tokens:
+        return [text]
+    
+    sentences = re.split(r'[.!?]+\s+', text)
+    
+    chunks = []
+    current_chunk = ""
+    current_tokens = 0
+    
+    for sentence in sentences:
+        sentence_tokens = count_tokens(sentence)
+        
+        if sentence_tokens > max_tokens:
+            words = sentence.split()
+            word_chunk = ""
+            word_tokens = 0
+            
+            for word in words:
+                word_token_count = count_tokens(word)
+                if word_tokens + word_token_count > max_tokens and word_chunk:
+                    chunks.append(word_chunk.strip())
+                    word_chunk = word
+                    word_tokens = word_token_count
+                else:
+                    word_chunk += " " + word if word_chunk else word
+                    word_tokens += word_token_count
+            
+            if word_chunk:
+                chunks.append(word_chunk.strip())
+            continue
+        
+        if current_tokens + sentence_tokens > max_tokens and current_chunk:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence
+            current_tokens = sentence_tokens
+        else:
+            current_chunk += ". " + sentence if current_chunk else sentence
+            current_tokens += sentence_tokens
+    
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return chunks
+
 def generate_embedding(text: str) -> List[float]:
-    """Generate an embedding vector for a text using OpenAI's API"""
+    """Generate embedding for text with safe token splitting"""
     client = get_openai_client()
     
-    # Request the embedding from OpenAI
-    response = client.embeddings.create(
-        input=text,
-        model=EMBEDDING_MODEL
-    )
+    token_count = count_tokens(text)
     
-    # Extract the embedding vector from the response
-    embedding = response.data[0].embedding
-    
-    return embedding
+    if token_count <= EMBEDDING_MAX_TOKENS:
+        response = client.embeddings.create(
+            input=text,
+            model=EMBEDDING_MODEL
+        )
+        return response.data[0].embedding
+    else:
+        split_texts = split_large_chunk(text, EMBEDDING_MAX_TOKENS)
+        
+        embeddings = []
+        for split_text in split_texts:
+            response = client.embeddings.create(
+                input=split_text,
+                model=EMBEDDING_MODEL
+            )
+            embeddings.append(response.data[0].embedding)
+        
+        avg_embedding = np.mean(embeddings, axis=0).tolist()
+        return avg_embedding
+
+########## ChromaDB ##########
 
 def get_chroma_client():
     """Initialize and return a ChromaDB client with persistence"""
-    # Create the directory if it doesn't exist
     os.makedirs(CHROMA_DB_PATH, exist_ok=True)
-    
-    # Initialize ChromaDB with persistence
     client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
     return client
 
 def get_or_create_collection(client, collection_name=COLLECTION_NAME):
     """Get or create a collection in ChromaDB"""
     try:
-        # First try to get the existing collection
         collection = client.get_collection(name=collection_name)
-        print(f"Retrieved existing collection '{collection_name}'")
     except:
-        # If it doesn't exist, create a new one
-        print(f"Creating new collection '{collection_name}'")
         collection = client.create_collection(
             name=collection_name,
             metadata={"description": "Workshop transcript chunks"}
         )
-    
     return collection
 
-def add_chunks_to_collection(collection, chunks):
-    """Add multiple chunks to the collection"""
-    # Prepare data for storage
+def add_chunks_to_collection(collection, chunks, workshop_id):
+    """Add multiple chunks to the collection with workshop metadata"""
     ids = []
     documents = []
     embeddings = []
     metadatas = []
     
-    for chunk in chunks:
-        # Generate embedding for this chunk
-        chunk['embedding'] = generate_embedding(chunk['text'])
-        
-        # Add to storage arrays
-        ids.append(chunk['chunk_id'])
-        documents.append(chunk['text'])
-        embeddings.append(chunk['embedding'])
-        
-        # Create metadata
-        metadata = {
-            'position': chunk['position'],
-            'token_count': chunk['token_count'],
-            'source': chunk['source'],
-            'timestamp': chunk.get('timestamp', 'Unknown'),
-            'speaker': chunk.get('speaker', 'Unknown'),
-        }
-        metadatas.append(metadata)
+    for i, chunk in enumerate(chunks):
+        try:
+            embedding = generate_embedding(chunk['text'])
+            chunk_id = f"{workshop_id}_{chunk['chunk_id']}"
+            
+            ids.append(chunk_id)
+            documents.append(chunk['text'])
+            embeddings.append(embedding)
+            
+            metadata = {
+                'workshop_id': workshop_id,
+                'position': chunk['position'],
+                'token_count': chunk['token_count'],
+                'source': chunk['source'],
+                'timestamp': chunk.get('timestamp', 'Unknown'),
+                'speaker': chunk.get('speaker', 'Unknown'),
+                'original_chunk_id': chunk['chunk_id']
+            }
+            metadatas.append(metadata)
+            
+        except Exception as e:
+            continue
     
-    # Add to collection
-    collection.add(
-        ids=ids,
-        documents=documents,
-        embeddings=embeddings,
-        metadatas=metadatas
-    )
-    
-    return len(chunks)
+    if ids:
+        try:
+            collection.add(
+                ids=ids,
+                documents=documents,
+                embeddings=embeddings,
+                metadatas=metadatas
+            )
+            return len(ids)
+        except Exception as e:
+            return 0
+    else:
+        return 0
 
-def query_collection(collection, query_text, n_results=DEFAULT_MAX_CHUNKS):
+def process_workshop(workshop_data: Dict[str, str], collection_name: str = COLLECTION_NAME) -> int:
+    """Process a single workshop"""
+    try:
+        workshop_id = workshop_data['id']
+        workshop_path = workshop_data['path']
+        
+        client = get_chroma_client()
+        collection = get_or_create_collection(client, collection_name)
+        
+        # Check if already processed
+        try:
+            existing_results = collection.query(
+                query_embeddings=[[0.0] * 1536],
+                n_results=1,
+                where={"workshop_id": workshop_id}
+            )
+            if existing_results and existing_results['ids'] and len(existing_results['ids'][0]) > 0:
+                return 0
+        except:
+            pass
+        
+        chunks = chunk_transcript(workshop_path, workshop_id)
+        
+        if not chunks:
+            return 0
+        
+        num_added = add_chunks_to_collection(collection, chunks, workshop_id)
+        return num_added
+        
+    except Exception as e:
+        print(f"Error processing workshop {workshop_data.get('id', 'Unknown')}: {str(e)}")
+        return 0
+
+def process_all_workshops(collection_name=COLLECTION_NAME):
+    """Process all discovered workshops"""
+    workshops = discover_workshops()
+    
+    if not workshops:
+        return []
+    
+    processed_workshops = []
+    
+    for workshop_id, workshop_info in workshops.items():
+        try:
+            num_chunks = process_workshop(workshop_info, collection_name)
+            if num_chunks > 0:
+                processed_workshops.append(workshop_id)
+        except Exception as e:
+            continue
+    
+    return processed_workshops
+
+########## Retrieval ##########
+
+def query_collection(collection, query_text, n_results=DEFAULT_MAX_CHUNKS, workshop_filter=None):
     """Query the collection for relevant documents"""
-    # Generate embedding for the query
     query_embedding = generate_embedding(query_text)
     
-    # Search for similar documents
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=n_results
-    )
+    query_params = {
+        "query_embeddings": [query_embedding],
+        "n_results": n_results
+    }
     
+    if workshop_filter:
+        if isinstance(workshop_filter, str):
+            query_params["where"] = {"workshop_id": workshop_filter}
+        elif isinstance(workshop_filter, list):
+            query_params["where"] = {"workshop_id": {"$in": workshop_filter}}
+    
+    results = collection.query(**query_params)
     return results
 
-# === RETRIEVAL FUNCTIONS ===
-
-def retrieve_relevant_chunks(question, collection_name=COLLECTION_NAME, n_results=DEFAULT_MAX_CHUNKS):
+def retrieve_relevant_chunks(question, collection_name=COLLECTION_NAME, n_results=DEFAULT_MAX_CHUNKS, workshop_filter=None):
     """Retrieve chunks from vector database for a given question"""
-    # Initialize client and get collection
     client = get_chroma_client()
     collection = get_or_create_collection(client, collection_name)
     
-    # Query the collection
-    results = query_collection(collection, question, n_results=n_results)
+    results = query_collection(collection, question, n_results=n_results, workshop_filter=workshop_filter)
     
-    # Process the results
     chunks = []
     if results and 'documents' in results and results['documents'] and len(results['documents'][0]) > 0:
-        # Create dummy distances (1.0) if not provided by the API
-        distances = [1.0] * len(results['documents'][0])
-        
-        # Format chunks
         for i in range(len(results['documents'][0])):
             chunk = {
                 'text': results['documents'][0][i],
                 'metadata': results['metadatas'][0][i],
                 'id': results['ids'][0][i],
-                'relevance': 1.0  # Default relevance since we don't have distances
+                'relevance': 1.0
             }
             chunks.append(chunk)
     
     return chunks
 
 def combine_chunks(chunks, max_tokens=DEFAULT_MAX_TOKENS):
-    """Combine multiple chunks into a single context, respecting token limit"""
+    """Combine multiple chunks into a single context"""
     if not chunks:
         return ""
     
-    # Sort chunks by position if available
     sorted_chunks = sorted(chunks, key=lambda x: int(x['metadata'].get('position', 0)))
     
     combined_text = ""
@@ -164,157 +310,76 @@ def combine_chunks(chunks, max_tokens=DEFAULT_MAX_TOKENS):
         chunk_text = chunk['text']
         chunk_tokens = int(chunk['metadata'].get('token_count', 0))
         
-        # If no token count in metadata, calculate it
         if chunk_tokens == 0:
             chunk_tokens = count_tokens(chunk_text)
         
-        # Check if adding this chunk would exceed the token limit
         if total_tokens + chunk_tokens > max_tokens:
             break
         
-        # Add separator between chunks if needed
         if combined_text:
             combined_text += "\n\n--- Next Section ---\n\n"
         
-        # Add the chunk text
         combined_text += chunk_text
         total_tokens += chunk_tokens
     
     return combined_text
 
-def format_sources(sources):
-    """Format source information into a readable string"""
-    if not sources:
-        return "No source information available."
-    
-    formatted = "Sources (most similar first, lower distance = more similar):\n"
-    for i, source in enumerate(sources):
-        # Start with the source number and distance score
-        source_header = f"{i+1}. "
-        if source.get('relevance') is not None:
-            source_header += f"[Distance: {source['relevance']:.4f}] "
-        
-        # Add position information
-        position = source.get('position', 'Unknown')
-        source_header += f"[Chunk {position}] "
-        
-        # Add speaker information if available
-        speaker = source.get('speaker', 'Unknown')
-        if speaker != 'Unknown':
-            source_header += f"Speaker: {speaker}. "
-        
-        formatted += source_header + "\n"
-        
-        # Add the content with better formatting
-        text = source.get('text', '')
-        if text:
-            # Format the text with proper indentation
-            text_lines = text.split('\n')
-            indented_text = '\n    '.join(text_lines)  # Indent continuation lines
-            formatted += f"    {indented_text}\n\n"
-    
-    return formatted
+########## Answer Question ##########
 
-def get_context_for_question(question, collection_name=COLLECTION_NAME, max_chunks=DEFAULT_MAX_CHUNKS):
+def get_context_for_question(question, collection_name=COLLECTION_NAME, max_chunks=DEFAULT_MAX_CHUNKS, workshop_filter=None):
     """Get relevant context from the vector database for a question"""
-    # Retrieve relevant chunks
-    chunks = retrieve_relevant_chunks(question, collection_name, max_chunks)
+    chunks = retrieve_relevant_chunks(question, collection_name, max_chunks, workshop_filter)
     
-    # Format source information
     sources = []
     for chunk in chunks:
         metadata = chunk['metadata']
         text = chunk['text']
         
-        # Extract timestamp from text if it starts with [TIMESTAMP: ...]
-        timestamp = metadata.get('timestamp', "Unknown")
-        
-        # Extract speaker
-        speaker = metadata.get('speaker', "Unknown")
-        
         source = {
             'position': metadata.get('position', 'Unknown'),
-            'timestamp': timestamp,
-            'speaker': speaker,
+            'timestamp': metadata.get('timestamp', "Unknown"),
+            'speaker': metadata.get('speaker', "Unknown"),
+            'workshop_id': metadata.get('workshop_id', "Unknown"),
             'text': text,
             'relevance': chunk.get('relevance')
         }
         sources.append(source)
     
-    # Combine chunks
     context = combine_chunks(chunks)
-    
-    return context, sources, chunks  # Return the raw chunks as well for logging
+    return context, sources, chunks
 
-def process_workshop(transcript_path, collection_name=COLLECTION_NAME):
-    """Process a workshop transcript and store it in the vector database"""
-    # Create chunks from workshop transcript
-    chunks = chunk_workshop_transcript(transcript_path)
-    print(f"Created {len(chunks)} chunks from workshop transcript")
-    
-    # Initialize ChromaDB
-    client = get_chroma_client()
-    collection = get_or_create_collection(client, collection_name)
-    
-    # Check if collection already has documents
-    try:
-        count = collection.count()
-        if count > 0:
-            print(f"Collection '{collection_name}' already has {count} documents")
-            return count
-    except:
-        # New collection, continue with adding chunks
-        pass
-    
-    # Add all chunks to the collection
-    num_added = add_chunks_to_collection(collection, chunks)
-    print(f"Added {num_added} chunks to collection '{collection_name}'")
-    
-    return len(chunks)
-
-# ====== Answer questions based on context ====== #
-def answer_question(question):
-    """
-    Answers a question based on the workshop transcript
-    Returns both the answer and context information
-    """
-    # Initialize ChromaDB and ensure collection exists
+def answer_question(question, workshop_filter=None):
+    """Answer a question based on workshop transcripts"""
     client = get_chroma_client()
     collection = get_or_create_collection(client, COLLECTION_NAME)
     
     # Check if collection is empty and populate if needed
     count = collection.count()
     if count == 0:
-        print("Collection is empty, processing workshop transcript...")
-        process_workshop(transcript_path, COLLECTION_NAME)
+        process_all_workshops(COLLECTION_NAME)
     
-    # Get relevant context from the vector database
     context, sources, chunks = get_context_for_question(
         question=question,
         collection_name=COLLECTION_NAME,
-        max_chunks=DEFAULT_MAX_CHUNKS
+        max_chunks=DEFAULT_MAX_CHUNKS,
+        workshop_filter=workshop_filter
     )
     
-    # Log information about the context
-    context_tokens = count_tokens(context)
-    num_chunks = len(sources)
-    print(f"Retrieved {context_tokens} tokens of relevant context")
-    print(f"Retrieved {num_chunks} source chunks")
-    
-    #start_time = time.time()  # Start timing from before API call
-    return context, sources, chunks  # Return sources for further processing
+    return context, sources, chunks
 
 def llm_answer_question(client, context, sources, chunks, question):
-
+    """Generate LLM answer with workshop awareness"""
     num_chunks = len(sources)
+    workshops_used = list(set([source.get('workshop_id', 'Unknown') for source in sources]))
     
     client = get_openai_client()
     try:
-        # Make the API call
+        enhanced_system_prompt = SYSTEM_PROMPT + f"\n\nThe information provided comes from workshops: {', '.join(workshops_used)}."
+        
         response = client.chat.completions.create(
             model=COMPLETION_MODEL,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": enhanced_system_prompt},
                 {"role": "user", "content": f"Workshop Transcript Sections:\n{context}\n\nQuestion: {question}"}
             ],
             temperature=0
@@ -322,23 +387,21 @@ def llm_answer_question(client, context, sources, chunks, question):
         
         message = response.choices[0].message.content
         
-        #Get token usage
         completion_tokens = response.usage.completion_tokens if hasattr(response, 'usage') else 0
-        prompt_tokens = response.usage.prompt_tokens if hasattr(response, 'usage') else context_tokens
+        prompt_tokens = response.usage.prompt_tokens if hasattr(response, 'usage') else count_tokens(context)
         
-        # # Record metrics
         context_info = {
              "num_chunks": num_chunks,
              "context_tokens": prompt_tokens,
              "completion_tokens": completion_tokens,
-             "embedding_tokens": num_chunks * 1536,  # Estimate based on embedding dimensions
+             "embedding_tokens": num_chunks * 1536,
+             "workshops_used": workshops_used,
              "chunks": chunks
          }
-
-        print(f"Context Information: {context_info}")
         
         return message, context_info
 
     except Exception as e:
         error_message = f"Sorry, an error occurred: {str(e)}"
-        return error_message
+        return error_message, {"error": str(e)}
+
