@@ -30,6 +30,42 @@ Run the chat logic
 python interactive_qa.py
 ```
 
+## Eval bot
+
+Run multiple queries at once:
+
+You need a json with key set as question
+
+```
+[
+    {
+      "id": "synth_student_cohort_student_1",
+      "question": "What are some best practices for prompt engineering that can help me create more effective and reliable outputs from LLMs?",
+      "user_type": "student",
+      "scenario": "cohort_student"
+    },
+    {
+      "id": "synth_student_cohort_student_2",
+      "question": "How can I evaluate the performance of my LLM application to ensure it meets the requirements of the project I'm working on?",
+      "user_type": "student",
+      "scenario": "cohort_student"
+    }
+]
+```
+To make it work you only need the question key
+
+Run:
+```
+python eval/test_retrieval.py
+```
+This grab the bot logic and create Q&A pair and store in a json file storing:
+- Question
+- Answer
+- Chunks used for the answer
+
+Evaluate using the ``minimal_eval_flask.py``
+
+
 ## Feedback Database
 
 ### Viewing Locally

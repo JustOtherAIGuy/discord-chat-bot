@@ -5,12 +5,23 @@ from chromadb.utils import embedding_functions
 from openai import OpenAI
 import json
 import glob
-from process_transcript import chunk_workshop_transcript, count_tokens
+
 from dotenv import load_dotenv
 from typing import List, Dict, Any
 import numpy as np
 import re
 import uuid
+
+
+def count_tokens(text: str) -> int:
+    """Count tokens using tiktoken"""
+    import tiktoken
+    try:
+        encoding = tiktoken.encoding_for_model("gpt-4")
+        return len(encoding.encode(text))
+    except:
+        encoding = tiktoken.get_encoding("cl100k_base")
+        return len(encoding.encode(text))
 
 # Support both local and Modal paths
 DATA_DIR = "/root/data" if os.path.exists("/root/data") else os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -405,3 +416,8 @@ def llm_answer_question(client, context, sources, chunks, question):
         error_message = f"Sorry, an error occurred: {str(e)}"
         return error_message, {"error": str(e)}
 
+# ...existing code...
+
+if __name__ == "__main__":
+    # Example usage or test code here
+    print("This runs only when vector_emb.py is executed directly.")
