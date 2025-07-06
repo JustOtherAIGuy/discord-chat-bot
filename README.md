@@ -12,7 +12,6 @@ Note that an OpenAI API key is required.
 # Clone the repository
 git clone https://github.com/sotoblanco/discord-chat-bot.git
 cd discord-chat-bot
-
 # Set environment variables
 export OPENAI_API_KEY="your_openai_api_key"
 ```
@@ -154,9 +153,17 @@ modal run src.modal_discord::debug_vector_database
 #### Using pip
 
 ```bash
-pip install -r requirements.txt
-# Install dev dependencies manually if needed
-pip install pytest black flake8 mypy
+# Analyze VTT files and test chunking strategies
+modal run src.modal_discord::diagnose_chunking_issues
+
+# Check what's stored in the vector database
+modal run src.modal_discord::analyze_chromadb_content
+
+# Delete existing collection and rechunk with robust strategy
+modal run src.modal_discord::clean_and_rechunk_workshops
+
+# Quick health check of vector database
+modal run src.modal_discord::debug_vector_database
 ```
 
 #### Using uv
