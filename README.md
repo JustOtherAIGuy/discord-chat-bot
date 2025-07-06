@@ -146,48 +146,6 @@ modal run src.modal_discord::clean_and_rechunk_workshops
 modal run src.modal_discord::debug_vector_database
 ```
 
-## 🛠️ Development
-
-### Installing Development Dependencies
-
-#### Using pip
-
-```bash
-# Analyze VTT files and test chunking strategies
-modal run src.modal_discord::diagnose_chunking_issues
-
-# Check what's stored in the vector database
-modal run src.modal_discord::analyze_chromadb_content
-
-# Delete existing collection and rechunk with robust strategy
-modal run src.modal_discord::clean_and_rechunk_workshops
-
-# Quick health check of vector database
-modal run src.modal_discord::debug_vector_database
-```
-
-#### Using uv
-
-```bash
-# Install all dependencies including dev tools
-uv sync --dev
-
-# Or install just production dependencies
-uv sync
-```
-
-### Running with uv
-
-When using uv, you can run the application with:
-
-```bash
-# Run the interactive QA
-uv run python interactive_qa.py
-
-# Run evaluation
-uv run python eval_app.py
-```
-
 ## 🔍 Troubleshooting
 
 ### Bot Not Responding
