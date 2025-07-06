@@ -4,6 +4,10 @@ env/
 ENV/
 .venv/
 
+# uv
+.uv/
+uv.lock
+
 # ignore the wandb logs
 wandb/
 # ignore the data directory
