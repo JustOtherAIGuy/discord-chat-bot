@@ -13,13 +13,6 @@ Then just type your questions and press Enter. Type 'exit', 'quit', or 'q' to st
 
 import sys
 import os
-from pathlib import Path
-
-# Add src directory to path so we can import our modules
-src_dir = Path(__file__).parent / "src"
-if src_dir.exists():
-    sys.path.insert(0, str(src_dir))
-
 from src.vector_emb import (
     discover_workshops,
     process_all_workshops,
