@@ -2,26 +2,37 @@
 
 A Discord bot that provides intelligent responses to questions about workshop transcripts using Retrieval-Augmented Generation (RAG). The bot integrates with Discord to respond to mentions, creates organized conversation threads, and uses ChromaDB for fast semantic search with OpenAI's GPT-4o-mini for generating responses.
 
+Note that an OpenAI API key is required.
+
 ## 🚀 Quick Start
 
 ### 1. Local Setup
+
 ```bash
 # Clone the repository
 git clone https://github.com/sotoblanco/discord-chat-bot.git
 cd discord-chat-bot
 
-# Create a virtual environment
-python -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
 # Set environment variables
 export OPENAI_API_KEY="your_openai_api_key"
 ```
 
+```sh
+# Option A: Install with pip
+## Create a virtual environment
+python -m venv venv
+source venv/bin/activate
+
+## Install dependencies
+pip install -r requirements.txt
+
+# Option B: Install with uv
+# Ensure uv is installed: https://docs.astral.sh/uv/getting-started/installation/
+uv sync
+```
+
 ### 2. Run Locally
+
 ```bash
 # For local testing without Discord
 python interactive_qa.py
@@ -30,6 +41,7 @@ python interactive_qa.py
 ## 📊 Evaluate Multiple Queries
 
 Create a JSON file with questions:
+
 ```json
 [
     {
@@ -40,12 +52,14 @@ Create a JSON file with questions:
 ```
 
 Run evaluation:
+
 ```bash
 python eval/test_retrieval.py
 ```
 
 
 ### 3. Discord Bot Setup
+
 1. **Create a Discord Application**:
    - Go to the [Discord Developer Portal](https://discord.com/developers/applications)
    - Create a new application
@@ -53,11 +67,13 @@ python eval/test_retrieval.py
    - Copy the bot token and set it as `DISCORD_BOT_TOKEN`
 
 Set the bot token:
+
 ```bash
 export DISCORD_BOT_TOKEN="your_discord_bot_token"
 ```
 
 ### 4. Deploy to Modal
+
 ```bash
 # Deploy the entire application
 modal deploy src.modal_discord.py
@@ -68,7 +84,9 @@ modal run src.modal_discord::discord_bot_runner
 # Initialize vector database (first run)
 modal run src.modal_discord::clean_and_rechunk_workshops
 ```
+
 ### 5. Deploy database to Modal
+
 This is a datasette database that stores the question-answer pairs and the feedback from the users.
 
 ```bash
@@ -87,11 +105,11 @@ modal deploy src.modal_datasette
 
 ## 🏗️ Core Architecture
 
-```
+```txt
 📁 src/
 ├── modal_discord.py      # Main bot deployment & diagnostic functions
 ├── modal_datasette.py    # Datasette database deployment
-├── process_transcript.py # Robust chunking with fallback strategies  
+├── process_transcript.py # Robust chunking with fallback strategies
 ├── vector_emb.py         # Vector embeddings & retrieval
 ├── database.py          # Interaction logging
 
@@ -129,9 +147,44 @@ modal run src.modal_discord::clean_and_rechunk_workshops
 modal run src.modal_discord::debug_vector_database
 ```
 
+## 🛠️ Development
+
+### Installing Development Dependencies
+
+#### Using pip
+
+```bash
+pip install -r requirements.txt
+# Install dev dependencies manually if needed
+pip install pytest black flake8 mypy
+```
+
+#### Using uv
+
+```bash
+# Install all dependencies including dev tools
+uv sync --dev
+
+# Or install just production dependencies
+uv sync
+```
+
+### Running with uv
+
+When using uv, you can run the application with:
+
+```bash
+# Run the interactive QA
+uv run python interactive_qa.py
+
+# Run evaluation
+uv run python eval_app.py
+```
+
 ## 🔍 Troubleshooting
 
 ### Bot Not Responding
+
 ```bash
 # Check bot status
 modal run src.modal_discord::debug_vector_database
@@ -142,6 +195,7 @@ modal deploy src.modal_discord.py
 ```
 
 ### Chunking Issues
+
 ```bash
 # Diagnose and fix
 modal run src.modal_discord::diagnose_chunking_issues
@@ -151,12 +205,14 @@ modal run src.modal_discord::clean_and_rechunk_workshops
 ## 📝 Feedback Database
 
 ### Viewing Locally
+
 ```bash
 # Using sqlite3
 sqlite3 data/feedback.db
 ```
 
 ### Viewing in Modal
+
 ```bash
 modal run src.modal_discord::view_feedback_database
 ```
@@ -164,11 +220,13 @@ modal run src.modal_discord::view_feedback_database
 ## 🎛️ Configuration
 
 ### Key Constants (`vector_emb.py`)
+
 - `DEFAULT_MAX_TOKENS = 12000` - Max context tokens for LLM
-- `EMBEDDING_MAX_TOKENS = 7000` - Max tokens for embedding model  
+- `EMBEDDING_MAX_TOKENS = 7000` - Max tokens for embedding model
 - `DEFAULT_MAX_CHUNKS = 10` - Chunks retrieved per query
 
 ### Chunking Parameters (`process_transcript.py`)
+
 - `CHUNK_SIZE = 1000` - Target tokens per chunk
 - `MIN_CHUNK_SIZE = 200` - Minimum tokens required per chunk
 - `CHUNK_OVERLAP = 100` - Token overlap between chunks
@@ -178,7 +236,6 @@ modal run src.modal_discord::view_feedback_database
 For issues with chunking imbalance or bot functionality:
 
 1. **Run diagnostics**: `modal run src.modal_discord::diagnose_chunking_issues`
-2. **Check database**: `modal run src.modal_discord::analyze_chromadb_content`  
+2. **Check database**: `modal run src.modal_discord::analyze_chromadb_content`
 3. **Clean & rechunk**: `modal run src.modal_discord::clean_and_rechunk_workshops`
 4. **Verify fix**: `modal run src.modal_discord::debug_vector_database`
-
