@@ -89,11 +89,18 @@ modal deploy src.modal_datasette
 
 ```
 📁 src/
-├── 🎯 modal_discord.py      # Main bot deployment & diagnostic functions
-├── 🔧 process_transcript.py # Robust chunking with fallback strategies  
-├── 💾 vector_emb.py         # Vector embeddings & retrieval
-├── 🗄️ database.py          # Interaction logging
-└── 📊 eval.py              # LLM evaluation system
+├── modal_discord.py      # Main bot deployment & diagnostic functions
+├── modal_datasette.py    # Datasette database deployment
+├── process_transcript.py # Robust chunking with fallback strategies  
+├── vector_emb.py         # Vector embeddings & retrieval
+├── database.py          # Interaction logging
+
+📁 eval/
+├── evaluate_system.py    # LLM evaluation system
+├── test_retrieval.py     # Test retrieval system
+├── questions.json        # Questions for evaluation
+├── eval_progress.json    # Progress tracking
+
 
 📁 data/                     # Workshop VTT transcript files
 📁 chroma_db/                # Persistent vector database
