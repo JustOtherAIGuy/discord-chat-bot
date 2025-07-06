@@ -57,6 +57,14 @@ def init_db():
         )
         ''')
         
+        # Create a new table for message-log mapping
+        c.execute('''
+        CREATE TABLE IF NOT EXISTS message_log_mapping (
+            message_id TEXT PRIMARY KEY,
+            log_id TEXT
+        )
+        ''')
+        
         conn.commit()
     finally:
         conn.close()

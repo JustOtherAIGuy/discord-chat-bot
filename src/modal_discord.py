@@ -119,6 +119,52 @@ def health_check():
     """Simple health check function"""
     return "alive"
 
+# Global dictionary to store message_id -> log_id mapping
+message_log_mapping = {}
+
+@app.function(
+    image=image,
+    secrets=secrets,
+    volumes=volume_mounts,
+    timeout=30
+)
+def store_user_feedback(log_id: str, feedback_type: str, user_id: str):
+    """Store user feedback for a specific log entry"""
+    # Import dependencies inside the function
+    from database import log_track_feedback
+    
+    try:
+        # Map reaction to rating and reason
+        if feedback_type == "👍":
+            rating = "positive"
+            reason = "helpful"
+        elif feedback_type == "👎":
+            rating = "negative"
+            reason = "not_helpful"
+        else:
+            rating = "neutral"
+            reason = "other"
+            
+        # Store the feedback
+        success = log_track_feedback(
+            log_id=log_id,
+            rating=rating,
+            reason=reason,
+            notes="",
+            user=str(user_id)
+        )
+        
+        if success:
+            print(f"✅ Feedback stored successfully for log_id: {log_id}, rating: {rating}")
+        else:
+            print(f"❌ Failed to store feedback for log_id: {log_id}")
+            
+        return success
+        
+    except Exception as e:
+        print(f"❌ Error storing feedback: {str(e)}")
+        return False
+
 # Global to track if bot is running (in-memory state)
 bot_instance = None
 
@@ -147,6 +193,7 @@ async def discord_bot_runner():
         """Set up and configure the Discord bot."""
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.reactions = True  # Enable reaction intents
         bot = commands.Bot(command_prefix="!", intents=intents)
 
         @bot.event
@@ -179,11 +226,50 @@ async def discord_bot_runner():
                     )
                     await feedback_msg.add_reaction("👍")
                     await feedback_msg.add_reaction("👎")
+                    
+                    # Store the mapping between message ID and log ID
+                    message_log_mapping[feedback_msg.id] = log_id
+                    print(f"📝 Stored feedback mapping: message_id={feedback_msg.id} -> log_id={log_id}")
+                    
                 except Exception as e:
                     await thread.send(f"Sorry, I encountered an error: {str(e)}")
                     print(f"Error processing question: {e}")
 
             await bot.process_commands(message)
+
+        @bot.event
+        async def on_reaction_add(reaction, user):
+            """Handle reaction additions to feedback messages"""
+            if user.bot:  # Ignore bot reactions
+                return
+                
+            # Check if this is a feedback message
+            if reaction.message.id in message_log_mapping:
+                log_id = message_log_mapping[reaction.message.id]
+                feedback_emoji = str(reaction.emoji)
+                
+                # Only process thumbs up/down reactions
+                if feedback_emoji in ["👍", "👎"]:
+                    print(f"👆 Reaction received: {feedback_emoji} from {user.name} for log_id: {log_id}")
+                    
+                    try:
+                        # Store the feedback using the Modal function
+                        success = store_user_feedback.remote(log_id, feedback_emoji, user.id)
+                        
+                        if success:
+                            # Send confirmation in the thread
+                            await reaction.message.reply(
+                                f"Thank you {user.mention}! Your feedback has been recorded. 🙏"
+                            )
+                            print(f"✅ Feedback stored successfully for user {user.name}")
+                        else:
+                            print(f"❌ Failed to store feedback for user {user.name}")
+                            
+                    except Exception as e:
+                        print(f"❌ Error processing feedback: {str(e)}")
+                        await reaction.message.reply(
+                            f"Sorry {user.mention}, there was an error recording your feedback. Please try again."
+                        )
 
         return bot
     
@@ -313,6 +399,7 @@ async def start_persistent_bot():
         """Set up and configure the Discord bot."""
         intents = discord.Intents.default()
         intents.message_content = True
+        intents.reactions = True  # Enable reaction intents
         bot = commands.Bot(command_prefix="!", intents=intents)
 
         @bot.event
@@ -345,11 +432,50 @@ async def start_persistent_bot():
                     )
                     await feedback_msg.add_reaction("👍")
                     await feedback_msg.add_reaction("👎")
+                    
+                    # Store the mapping between message ID and log ID
+                    message_log_mapping[feedback_msg.id] = log_id
+                    print(f"📝 Stored feedback mapping: message_id={feedback_msg.id} -> log_id={log_id}")
+                    
                 except Exception as e:
                     await thread.send(f"Sorry, I encountered an error: {str(e)}")
                     print(f"Error processing question: {e}")
 
             await bot.process_commands(message)
+
+        @bot.event
+        async def on_reaction_add(reaction, user):
+            """Handle reaction additions to feedback messages"""
+            if user.bot:  # Ignore bot reactions
+                return
+                
+            # Check if this is a feedback message
+            if reaction.message.id in message_log_mapping:
+                log_id = message_log_mapping[reaction.message.id]
+                feedback_emoji = str(reaction.emoji)
+                
+                # Only process thumbs up/down reactions
+                if feedback_emoji in ["👍", "👎"]:
+                    print(f"👆 Reaction received: {feedback_emoji} from {user.name} for log_id: {log_id}")
+                    
+                    try:
+                        # Store the feedback using the Modal function
+                        success = store_user_feedback.remote(log_id, feedback_emoji, user.id)
+                        
+                        if success:
+                            # Send confirmation in the thread
+                            await reaction.message.reply(
+                                f"Thank you {user.mention}! Your feedback has been recorded. 🙏"
+                            )
+                            print(f"✅ Feedback stored successfully for user {user.name}")
+                        else:
+                            print(f"❌ Failed to store feedback for user {user.name}")
+                            
+                    except Exception as e:
+                        print(f"❌ Error processing feedback: {str(e)}")
+                        await reaction.message.reply(
+                            f"Sorry {user.mention}, there was an error recording your feedback. Please try again."
+                        )
 
         return bot
     

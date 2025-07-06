@@ -98,4 +98,4 @@ def chunk_workshop_transcript(transcript_path: str) -> List[Dict[str, Any]]:
     """Main chunking function - extracts workshop ID from path"""
     filename = os.path.basename(transcript_path)
     workshop_id = filename.split('-')[0] if '-' in filename else filename.split('.')[0]
-    return simple_chunk_transcript(transcript_path, workshop_id)
+    return chunk_transcript(transcript_path, workshop_id)

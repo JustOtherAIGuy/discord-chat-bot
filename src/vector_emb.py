@@ -12,6 +12,8 @@ import numpy as np
 import re
 import uuid
 
+from .process_transcript import chunk_transcript
+
 
 def count_tokens(text: str) -> int:
     """Count tokens using tiktoken"""
@@ -39,7 +41,12 @@ Your task is to answer questions based on the workshop transcript sections provi
 
 Be concise but thorough in your response. Think step by step and make useful responses to the user.
 Identify the underlying question and answer it directly trying to provide context and action items.
-Follow the AIDA model:
+Follow the AIDA model to engage with the user and provide a response that is helpful and engaging.
+
+Atention
+Interest
+Desire
+Action
 
 But do not explicitly state the AIDA model in your response.
 

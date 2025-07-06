@@ -17,12 +17,12 @@ for question in questions:
     context, sources, chunks = answer_question(question)
     response, context_info = llm_answer_question(client, context, sources, chunks, question)
     # store metadata in a json file in eval folder
-    with open('eval/eval_retrieval_questions.json', 'a') as f:
-        json.dump({
+    with open('eval/qa_pairs.json', 'a') as f:
+        json.dump([{
             'question': question,
             'response': response,
-            'context_info': context_info
-        }, f)
+          #  'context_info': context_info
+        }], f)
     print(response)
     print(context_info)
     print("-"*100 + "\n")
