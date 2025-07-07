@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "discord-chat-bot"
+version = "0.1.0"
+description = "A Discord chat bot with RAG capabilities for workshop transcripts"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Discord Chat Bot Team" }]
+keywords = ["discord", "bot", "rag", "openai", "chromadb"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "discord.py==2.5.2",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "chromadb>=0.4.0",
+    "tiktoken>=0.5.0",
+    "pandas==2.2.3",
+    "numpy>=1.24.0",
+    "gradio==4.44.0",
+    "modal>=0.64.0",
+    "fastapi>=0.100.0",
+    "pynacl>=1.5.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0.0", "black>=23.0.0", "flake8>=6.0.0", "mypy>=1.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/sotoblanco/discord-chat-bot"
+Repository = "https://github.com/sotoblanco/discord-chat-bot"
+Issues = "https://github.com/sotoblanco/discord-chat-bot/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
