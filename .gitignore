@@ -10,8 +10,6 @@ uv.lock
 
 # ignore the wandb logs
 wandb/
-# ignore the data directory
-data/
 
 # Environment variables
 .env
