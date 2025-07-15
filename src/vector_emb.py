@@ -12,7 +12,7 @@ import numpy as np
 import re
 import uuid
 
-from .process_transcript import chunk_transcript
+from process_transcript import chunk_transcript
 
 
 def count_tokens(text: str) -> int:
