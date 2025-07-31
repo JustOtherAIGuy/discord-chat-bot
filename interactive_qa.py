@@ -13,7 +13,10 @@ Then just type your questions and press Enter. Type 'exit', 'quit', or 'q' to st
 
 import sys
 import os
-from src.vector_emb import (
+# Add src to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from vector_emb import (
     discover_workshops,
     process_all_workshops,
     answer_question,
